@@ -9,4 +9,6 @@ public interface OpportunityRepository {
     Optional<Opportunity> findById(String opportunityId);
 
     List<Opportunity> findOpenOpportunities();
+
+    List<Opportunity> findByCategory(String category);
 }

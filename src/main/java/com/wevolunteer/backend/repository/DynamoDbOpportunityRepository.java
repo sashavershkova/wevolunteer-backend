@@ -44,6 +44,47 @@ public class DynamoDbOpportunityRepository implements OpportunityRepository {
         return Optional.of(mapToOpportunity(item));
     }
 
+    @Override
+    public List<Opportunity> findOpenOpportunities() {
+        QueryRequest request = QueryRequest.builder()
+                .tableName(TABLE_NAME)
+                .indexName("GSI1_OpenOpportunities")
+                .keyConditionExpression("GSI1PK = :gsi1pk")
+                .expressionAttributeValues(Map.of(
+                        ":gsi1pk", AttributeValue.fromS("OPPORTUNITIES#OPEN")
+                ))
+                .build();
+
+        QueryResponse response = dynamoDbClient.query(request);
+
+        return response.items().stream()
+                .map(this::mapToOpportunity)
+                .toList();
+    }
+
+    @Override
+    public List<Opportunity> findByCategory(String category) {
+        QueryRequest request = QueryRequest.builder()
+                .tableName(TABLE_NAME)
+                .indexName("GSI2_Category")
+                .keyConditionExpression("GSI2PK = :category")
+                .filterExpression("#status = :openStatus")
+                .expressionAttributeNames(Map.of(
+                        "#status", "status"
+                ))
+                .expressionAttributeValues(Map.of(
+                        ":category", AttributeValue.fromS("CATEGORY#" + category),
+                        ":openStatus", AttributeValue.fromS("OPEN")
+                ))
+                .build();
+
+        QueryResponse response = dynamoDbClient.query(request);
+
+        return response.items().stream()
+                .map(this::mapToOpportunity)
+                .toList();
+    }
+
     private Opportunity mapToOpportunity(Map<String, AttributeValue> item) {
         int capacity = Integer.parseInt(item.get("capacity").n());
         int registeredCount = Integer.parseInt(item.get("registeredCount").n());
@@ -63,22 +104,4 @@ public class DynamoDbOpportunityRepository implements OpportunityRepository {
                 capacity - registeredCount
         );
     }
-
-    @Override
-public List<Opportunity> findOpenOpportunities() {
-    QueryRequest request = QueryRequest.builder()
-            .tableName(TABLE_NAME)
-            .indexName("GSI1_OpenOpportunities")
-            .keyConditionExpression("GSI1PK = :gsi1pk")
-            .expressionAttributeValues(Map.of(
-                    ":gsi1pk", AttributeValue.fromS("OPPORTUNITIES#OPEN")
-            ))
-            .build();
-
-    QueryResponse response = dynamoDbClient.query(request);
-
-    return response.items().stream()
-            .map(this::mapToOpportunity)
-            .toList();
-}
 }

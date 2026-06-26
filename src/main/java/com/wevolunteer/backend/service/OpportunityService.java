@@ -23,4 +23,8 @@ public class OpportunityService {
     public List<Opportunity> getOpenOpportunities() {
         return opportunityRepository.findOpenOpportunities();
     }
+
+    public List<Opportunity> getOpportunitiesByCategory(String category) {
+        return opportunityRepository.findByCategory(category);
+    }
 }
