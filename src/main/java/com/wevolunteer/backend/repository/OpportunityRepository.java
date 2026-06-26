@@ -11,4 +11,6 @@ public interface OpportunityRepository {
     List<Opportunity> findOpenOpportunities();
 
     List<Opportunity> findByCategory(String category);
+
+    List<Opportunity> findByLocation(String location);
 }

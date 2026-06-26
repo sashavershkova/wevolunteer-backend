@@ -27,4 +27,8 @@ public class OpportunityService {
     public List<Opportunity> getOpportunitiesByCategory(String category) {
         return opportunityRepository.findByCategory(category);
     }
+
+    public List<Opportunity> getOpportunitiesByLocation(String location) {
+        return opportunityRepository.findByLocation(location);
+    }
 }
