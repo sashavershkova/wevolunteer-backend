@@ -108,6 +108,29 @@ public class DynamoDbOpportunityRepository implements OpportunityRepository {
                 .toList();
     }
 
+    @Override
+    public List<Opportunity> findByOrganizationId(String organizationId) {
+        QueryRequest request = QueryRequest.builder()
+                .tableName(TABLE_NAME)
+                .indexName("GSI4_Organization")
+                .keyConditionExpression("GSI4PK = :organizationId")
+                .filterExpression("#status = :openStatus")
+                .expressionAttributeNames(Map.of(
+                        "#status", "status"
+                ))
+                .expressionAttributeValues(Map.of(
+                        ":organizationId", AttributeValue.fromS("ORG#" + organizationId),
+                        ":openStatus", AttributeValue.fromS("OPEN")
+                ))
+                .build();
+
+        QueryResponse response = dynamoDbClient.query(request);
+
+        return response.items().stream()
+                .map(this::mapToOpportunity)
+                .toList();
+    }
+
     private Opportunity mapToOpportunity(Map<String, AttributeValue> item) {
         int capacity = Integer.parseInt(item.get("capacity").n());
         int registeredCount = Integer.parseInt(item.get("registeredCount").n());

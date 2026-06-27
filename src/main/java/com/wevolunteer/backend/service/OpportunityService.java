@@ -31,4 +31,8 @@ public class OpportunityService {
     public List<Opportunity> getOpportunitiesByLocation(String location) {
         return opportunityRepository.findByLocation(location);
     }
+
+    public List<Opportunity> getOpportunitiesByOrganizationId(String organizationId) {
+        return opportunityRepository.findByOrganizationId(organizationId);
+    }
 }

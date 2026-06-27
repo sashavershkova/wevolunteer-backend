@@ -26,7 +26,8 @@ public class OpportunityController {
     @GetMapping("/opportunities")
     public List<Opportunity> getOpportunities(
             @RequestParam(required = false) String category,
-            @RequestParam(required = false) String location) {
+            @RequestParam(required = false) String location,
+            @RequestParam(required = false) String organizationId) {
 
         if (category != null && !category.isBlank()) {
             return opportunityService.getOpportunitiesByCategory(category);
@@ -34,6 +35,10 @@ public class OpportunityController {
 
         if (location != null && !location.isBlank()) {
             return opportunityService.getOpportunitiesByLocation(location);
+        }
+
+        if (organizationId != null && !organizationId.isBlank()) {
+            return opportunityService.getOpportunitiesByOrganizationId(organizationId);
         }
 
         return opportunityService.getOpenOpportunities();
