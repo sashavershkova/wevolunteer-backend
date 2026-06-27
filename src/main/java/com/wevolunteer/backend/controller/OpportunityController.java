@@ -27,7 +27,9 @@ public class OpportunityController {
     public List<Opportunity> getOpportunities(
             @RequestParam(required = false) String category,
             @RequestParam(required = false) String location,
-            @RequestParam(required = false) String organizationId) {
+            @RequestParam(required = false) String organizationId,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
 
         if (category != null && !category.isBlank()) {
             return opportunityService.getOpportunitiesByCategory(category);
@@ -39,6 +41,11 @@ public class OpportunityController {
 
         if (organizationId != null && !organizationId.isBlank()) {
             return opportunityService.getOpportunitiesByOrganizationId(organizationId);
+        }
+
+        if (startDate != null && !startDate.isBlank()
+                && endDate != null && !endDate.isBlank()) {
+            return opportunityService.getOpenOpportunitiesByDateRange(startDate, endDate);
         }
 
         return opportunityService.getOpenOpportunities();

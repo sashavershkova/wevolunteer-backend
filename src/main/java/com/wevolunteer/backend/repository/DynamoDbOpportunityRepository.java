@@ -150,4 +150,24 @@ public class DynamoDbOpportunityRepository implements OpportunityRepository {
                 capacity - registeredCount
         );
     }
+
+    @Override
+    public List<Opportunity> findOpenOpportunitiesByDateRange(String startDate, String endDate) {
+        QueryRequest request = QueryRequest.builder()
+                .tableName(TABLE_NAME)
+                .indexName("GSI1_OpenOpportunities")
+                .keyConditionExpression("GSI1PK = :gsi1pk AND GSI1SK BETWEEN :startDate AND :endDate")
+                .expressionAttributeValues(Map.of(
+                        ":gsi1pk", AttributeValue.fromS("OPPORTUNITIES#OPEN"),
+                        ":startDate", AttributeValue.fromS("DATE#" + startDate),
+                        ":endDate", AttributeValue.fromS("DATE#" + endDate + "~")
+                ))
+                .build();
+
+        QueryResponse response = dynamoDbClient.query(request);
+
+        return response.items().stream()
+                .map(this::mapToOpportunity)
+                .toList();
+    }
 }

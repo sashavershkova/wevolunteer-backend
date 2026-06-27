@@ -15,4 +15,6 @@ public interface OpportunityRepository {
     List<Opportunity> findByLocation(String location);
 
     List<Opportunity> findByOrganizationId(String organizationId);
+
+    List<Opportunity> findOpenOpportunitiesByDateRange(String startDate, String endDate);
 }
