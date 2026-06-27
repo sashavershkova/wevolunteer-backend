@@ -19,4 +19,12 @@ public interface OpportunityRepository {
     List<Opportunity> findAllByOrganizationId(String organizationId); // OPEN and CLOSED
 
     List<Opportunity> findOpenOpportunitiesByDateRange(String startDate, String endDate);
+
+    List<Opportunity> findOpenOpportunitiesWithFilters(
+        String category,
+        String location,
+        String organizationId,
+        String startDate,
+        String endDate
+);
 }

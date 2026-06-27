@@ -8,6 +8,8 @@ import software.amazon.awssdk.services.dynamodb.model.GetItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.QueryRequest;
 import software.amazon.awssdk.services.dynamodb.model.QueryResponse;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -55,11 +57,7 @@ public class DynamoDbOpportunityRepository implements OpportunityRepository {
                 ))
                 .build();
 
-        QueryResponse response = dynamoDbClient.query(request);
-
-        return response.items().stream()
-                .map(this::mapToOpportunity)
-                .toList();
+        return queryAndMap(request);
     }
 
     @Override
@@ -78,11 +76,7 @@ public class DynamoDbOpportunityRepository implements OpportunityRepository {
                 ))
                 .build();
 
-        QueryResponse response = dynamoDbClient.query(request);
-
-        return response.items().stream()
-                .map(this::mapToOpportunity)
-                .toList();
+        return queryAndMap(request);
     }
 
     @Override
@@ -101,11 +95,7 @@ public class DynamoDbOpportunityRepository implements OpportunityRepository {
                 ))
                 .build();
 
-        QueryResponse response = dynamoDbClient.query(request);
-
-        return response.items().stream()
-                .map(this::mapToOpportunity)
-                .toList();
+        return queryAndMap(request);
     }
 
     @Override
@@ -124,11 +114,154 @@ public class DynamoDbOpportunityRepository implements OpportunityRepository {
                 ))
                 .build();
 
+        return queryAndMap(request);
+    }
+
+    @Override
+    public List<Opportunity> findAllByOrganizationId(String organizationId) {
+        QueryRequest request = QueryRequest.builder()
+                .tableName(TABLE_NAME)
+                .indexName("GSI4_Organization")
+                .keyConditionExpression("GSI4PK = :organizationId")
+                .expressionAttributeValues(Map.of(
+                        ":organizationId", AttributeValue.fromS("ORG#" + organizationId)
+                ))
+                .build();
+
+        return queryAndMap(request);
+    }
+
+    @Override
+    public List<Opportunity> findOpenOpportunitiesByDateRange(String startDate, String endDate) {
+        QueryRequest request = QueryRequest.builder()
+                .tableName(TABLE_NAME)
+                .indexName("GSI1_OpenOpportunities")
+                .keyConditionExpression("GSI1PK = :gsi1pk AND GSI1SK BETWEEN :startDate AND :endDate")
+                .expressionAttributeValues(Map.of(
+                        ":gsi1pk", AttributeValue.fromS("OPPORTUNITIES#OPEN"),
+                        ":startDate", AttributeValue.fromS("DATE#" + startDate),
+                        ":endDate", AttributeValue.fromS("DATE#" + endDate + "~")
+                ))
+                .build();
+
+        return queryAndMap(request);
+    }
+
+    @Override
+    public List<Opportunity> findOpenOpportunitiesWithFilters(
+            String category,
+            String location,
+            String organizationId,
+            String startDate,
+            String endDate) {
+
+        Map<String, AttributeValue> values = new HashMap<>();
+        Map<String, String> names = new HashMap<>();
+        List<String> filters = new ArrayList<>();
+
+        QueryRequest.Builder requestBuilder = QueryRequest.builder()
+                .tableName(TABLE_NAME);
+
+        boolean locationIsMain = hasText(location);
+        boolean categoryIsMain = !locationIsMain && hasText(category);
+        boolean organizationIsMain = !locationIsMain && !categoryIsMain && hasText(organizationId);
+        boolean dateIsMain = !locationIsMain && !categoryIsMain && !organizationIsMain
+                && hasText(startDate) && hasText(endDate);
+
+        if (locationIsMain) {
+            requestBuilder
+                    .indexName("GSI3_Location")
+                    .keyConditionExpression("GSI3PK = :locationKey");
+            values.put(":locationKey", AttributeValue.fromS("LOCATION#" + location));
+            addOpenStatusFilter(filters, names, values);
+
+        } else if (categoryIsMain) {
+            requestBuilder
+                    .indexName("GSI2_Category")
+                    .keyConditionExpression("GSI2PK = :categoryKey");
+            values.put(":categoryKey", AttributeValue.fromS("CATEGORY#" + category));
+            addOpenStatusFilter(filters, names, values);
+
+        } else if (organizationIsMain) {
+            requestBuilder
+                    .indexName("GSI4_Organization")
+                    .keyConditionExpression("GSI4PK = :organizationKey");
+            values.put(":organizationKey", AttributeValue.fromS("ORG#" + organizationId));
+            addOpenStatusFilter(filters, names, values);
+
+        } else if (dateIsMain) {
+            requestBuilder
+                    .indexName("GSI1_OpenOpportunities")
+                    .keyConditionExpression("GSI1PK = :openKey AND GSI1SK BETWEEN :startDateKey AND :endDateKey");
+            values.put(":openKey", AttributeValue.fromS("OPPORTUNITIES#OPEN"));
+            values.put(":startDateKey", AttributeValue.fromS("DATE#" + startDate));
+            values.put(":endDateKey", AttributeValue.fromS("DATE#" + endDate + "~"));
+
+        } else {
+            requestBuilder
+                    .indexName("GSI1_OpenOpportunities")
+                    .keyConditionExpression("GSI1PK = :openKey");
+            values.put(":openKey", AttributeValue.fromS("OPPORTUNITIES#OPEN"));
+        }
+
+        if (hasText(category) && !categoryIsMain) {
+            names.put("#category", "category");
+            values.put(":categoryFilter", AttributeValue.fromS(category));
+            filters.add("#category = :categoryFilter");
+        }
+
+        if (hasText(location) && !locationIsMain) {
+            names.put("#location", "location");
+            values.put(":locationFilter", AttributeValue.fromS(location + ", WA"));
+            filters.add("#location = :locationFilter");
+        }
+
+        if (hasText(organizationId) && !organizationIsMain) {
+            names.put("#organizationId", "organizationId");
+            values.put(":organizationFilter", AttributeValue.fromS(organizationId));
+            filters.add("#organizationId = :organizationFilter");
+        }
+
+        if (hasText(startDate) && hasText(endDate) && !dateIsMain) {
+            names.put("#date", "date");
+            values.put(":startDateFilter", AttributeValue.fromS(startDate));
+            values.put(":endDateFilter", AttributeValue.fromS(endDate));
+            filters.add("#date BETWEEN :startDateFilter AND :endDateFilter");
+        }
+
+        requestBuilder.expressionAttributeValues(values);
+
+        if (!names.isEmpty()) {
+            requestBuilder.expressionAttributeNames(names);
+        }
+
+        if (!filters.isEmpty()) {
+            requestBuilder.filterExpression(String.join(" AND ", filters));
+        }
+
+        return queryAndMap(requestBuilder.build());
+    }
+
+    private void addOpenStatusFilter(
+            List<String> filters,
+            Map<String, String> names,
+            Map<String, AttributeValue> values) {
+
+        names.put("#status", "status");
+        values.put(":openStatus", AttributeValue.fromS("OPEN"));
+        filters.add("#status = :openStatus");
+    }
+
+    private List<Opportunity> queryAndMap(QueryRequest request) {
         QueryResponse response = dynamoDbClient.query(request);
 
         return response.items().stream()
                 .map(this::mapToOpportunity)
                 .toList();
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 
     private Opportunity mapToOpportunity(Map<String, AttributeValue> item) {
@@ -149,43 +282,5 @@ public class DynamoDbOpportunityRepository implements OpportunityRepository {
                 registeredCount,
                 capacity - registeredCount
         );
-    }
-
-    @Override
-    public List<Opportunity> findOpenOpportunitiesByDateRange(String startDate, String endDate) {
-        QueryRequest request = QueryRequest.builder()
-                .tableName(TABLE_NAME)
-                .indexName("GSI1_OpenOpportunities")
-                .keyConditionExpression("GSI1PK = :gsi1pk AND GSI1SK BETWEEN :startDate AND :endDate")
-                .expressionAttributeValues(Map.of(
-                        ":gsi1pk", AttributeValue.fromS("OPPORTUNITIES#OPEN"),
-                        ":startDate", AttributeValue.fromS("DATE#" + startDate),
-                        ":endDate", AttributeValue.fromS("DATE#" + endDate + "~")
-                ))
-                .build();
-
-        QueryResponse response = dynamoDbClient.query(request);
-
-        return response.items().stream()
-                .map(this::mapToOpportunity)
-                .toList();
-    }
-
-    @Override
-    public List<Opportunity> findAllByOrganizationId(String organizationId) {
-        QueryRequest request = QueryRequest.builder()
-                .tableName(TABLE_NAME)
-                .indexName("GSI4_Organization")
-                .keyConditionExpression("GSI4PK = :organizationId")
-                .expressionAttributeValues(Map.of(
-                        ":organizationId", AttributeValue.fromS("ORG#" + organizationId)
-                ))
-                .build();
-
-        QueryResponse response = dynamoDbClient.query(request);
-
-        return response.items().stream()
-                .map(this::mapToOpportunity)
-                .toList();
     }
 }

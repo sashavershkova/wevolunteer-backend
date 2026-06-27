@@ -31,20 +31,42 @@ public class OpportunityController {
             @RequestParam(required = false) String startDate,
             @RequestParam(required = false) String endDate) {
 
-        if (category != null && !category.isBlank()) {
+        boolean hasCategory = category != null && !category.isBlank();
+        boolean hasLocation = location != null && !location.isBlank();
+        boolean hasOrganizationId = organizationId != null && !organizationId.isBlank();
+        boolean hasDateRange = startDate != null && !startDate.isBlank()
+                && endDate != null && !endDate.isBlank();
+
+        int filterCount = 0;
+
+        if (hasCategory) filterCount++;
+        if (hasLocation) filterCount++;
+        if (hasOrganizationId) filterCount++;
+        if (hasDateRange) filterCount++;
+
+        if (filterCount > 1) {
+            return opportunityService.getOpenOpportunitiesWithFilters(
+                    category,
+                    location,
+                    organizationId,
+                    startDate,
+                    endDate
+            );
+        }
+
+        if (hasCategory) {
             return opportunityService.getOpportunitiesByCategory(category);
         }
 
-        if (location != null && !location.isBlank()) {
+        if (hasLocation) {
             return opportunityService.getOpportunitiesByLocation(location);
         }
 
-        if (organizationId != null && !organizationId.isBlank()) {
+        if (hasOrganizationId) {
             return opportunityService.getOpportunitiesByOrganizationId(organizationId);
         }
 
-        if (startDate != null && !startDate.isBlank()
-                && endDate != null && !endDate.isBlank()) {
+        if (hasDateRange) {
             return opportunityService.getOpenOpportunitiesByDateRange(startDate, endDate);
         }
 

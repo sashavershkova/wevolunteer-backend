@@ -43,4 +43,20 @@ public class OpportunityService {
     public List<Opportunity> getAllOpportunitiesByOrganizationId(String organizationId) {
         return opportunityRepository.findAllByOrganizationId(organizationId);
     }
+
+    public List<Opportunity> getOpenOpportunitiesWithFilters(
+            String category,
+            String location,
+            String organizationId,
+            String startDate,
+            String endDate) {
+
+        return opportunityRepository.findOpenOpportunitiesWithFilters(
+                category,
+                location,
+                organizationId,
+                startDate,
+                endDate
+        );
+    }
 }
