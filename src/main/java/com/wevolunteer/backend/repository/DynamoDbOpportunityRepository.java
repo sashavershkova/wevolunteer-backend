@@ -170,4 +170,22 @@ public class DynamoDbOpportunityRepository implements OpportunityRepository {
                 .map(this::mapToOpportunity)
                 .toList();
     }
+
+    @Override
+    public List<Opportunity> findAllByOrganizationId(String organizationId) {
+        QueryRequest request = QueryRequest.builder()
+                .tableName(TABLE_NAME)
+                .indexName("GSI4_Organization")
+                .keyConditionExpression("GSI4PK = :organizationId")
+                .expressionAttributeValues(Map.of(
+                        ":organizationId", AttributeValue.fromS("ORG#" + organizationId)
+                ))
+                .build();
+
+        QueryResponse response = dynamoDbClient.query(request);
+
+        return response.items().stream()
+                .map(this::mapToOpportunity)
+                .toList();
+    }
 }

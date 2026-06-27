@@ -39,4 +39,8 @@ public class OpportunityService {
     public List<Opportunity> getOpenOpportunitiesByDateRange(String startDate, String endDate) {
         return opportunityRepository.findOpenOpportunitiesByDateRange(startDate, endDate);
     }
+
+    public List<Opportunity> getAllOpportunitiesByOrganizationId(String organizationId) {
+        return opportunityRepository.findAllByOrganizationId(organizationId);
+    }
 }
