@@ -1,7 +1,9 @@
 package com.wevolunteer.backend.controller;
 
 import com.wevolunteer.backend.model.Opportunity;
+import com.wevolunteer.backend.model.Organization;
 import com.wevolunteer.backend.service.OpportunityService;
+import com.wevolunteer.backend.service.OrganizationService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
@@ -11,10 +13,19 @@ import java.util.List;
 @RestController
 public class OrganizationController {
 
+    private final OrganizationService organizationService;
     private final OpportunityService opportunityService;
 
-    public OrganizationController(OpportunityService opportunityService) {
+    public OrganizationController(
+            OrganizationService organizationService,
+            OpportunityService opportunityService) {
+        this.organizationService = organizationService;
         this.opportunityService = opportunityService;
+    }
+
+    @GetMapping("/organizations/{organizationId}")
+    public Organization getOrganization(@PathVariable String organizationId) {
+        return organizationService.getById(organizationId);
     }
 
     @GetMapping("/organizations/{organizationId}/opportunities")
