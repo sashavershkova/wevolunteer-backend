@@ -59,4 +59,14 @@ public class OpportunityService {
                 endDate
         );
     }
+
+    public List<Opportunity> getOpportunitiesByOrganizationIdAndStatus(
+            String organizationId,
+            String status) {
+
+        return opportunityRepository.findByOrganizationIdAndStatus(
+                organizationId,
+                status
+        );
+    }
 }

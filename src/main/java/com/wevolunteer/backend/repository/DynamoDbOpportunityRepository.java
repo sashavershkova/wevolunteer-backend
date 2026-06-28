@@ -283,4 +283,26 @@ public class DynamoDbOpportunityRepository implements OpportunityRepository {
                 capacity - registeredCount
         );
     }
+
+    @Override
+        public List<Opportunity> findByOrganizationIdAndStatus(
+                String organizationId,
+                String status) {
+
+        QueryRequest request = QueryRequest.builder()
+                .tableName(TABLE_NAME)
+                .indexName("GSI4_Organization")
+                .keyConditionExpression("GSI4PK = :organizationId")
+                .filterExpression("#status = :status")
+                .expressionAttributeNames(Map.of(
+                        "#status", "status"
+                ))
+                .expressionAttributeValues(Map.of(
+                        ":organizationId", AttributeValue.fromS("ORG#" + organizationId),
+                        ":status", AttributeValue.fromS(status)
+                ))
+                .build();
+
+        return queryAndMap(request);
+        }
 }

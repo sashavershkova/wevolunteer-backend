@@ -6,6 +6,7 @@ import com.wevolunteer.backend.service.OpportunityService;
 import com.wevolunteer.backend.service.OrganizationService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -30,7 +31,15 @@ public class OrganizationController {
 
     @GetMapping("/organizations/{organizationId}/opportunities")
     public List<Opportunity> getOrganizationOpportunities(
-            @PathVariable String organizationId) {
+            @PathVariable String organizationId,
+            @RequestParam(required = false) String status) {
+
+        if (status != null && !status.isBlank()) {
+            return opportunityService.getOpportunitiesByOrganizationIdAndStatus(
+                    organizationId,
+                    status
+            );
+        }
 
         return opportunityService.getAllOpportunitiesByOrganizationId(organizationId);
     }

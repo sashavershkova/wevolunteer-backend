@@ -21,10 +21,15 @@ public interface OpportunityRepository {
     List<Opportunity> findOpenOpportunitiesByDateRange(String startDate, String endDate);
 
     List<Opportunity> findOpenOpportunitiesWithFilters(
-        String category,
-        String location,
-        String organizationId,
-        String startDate,
-        String endDate
-);
+            String category,
+            String location,
+            String organizationId,
+            String startDate,
+            String endDate
+    );
+
+    List<Opportunity> findByOrganizationIdAndStatus(
+            String organizationId,
+            String status
+    );
 }
