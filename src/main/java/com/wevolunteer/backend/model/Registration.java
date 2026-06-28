@@ -8,5 +8,8 @@ public record Registration(
         String location,
         String organizationId,
         String organizationName,
-        String registrationStatus
+        String registrationStatus,
+        String volunteerName,
+        String email,
+        String registeredAt
 ) {}

@@ -1,7 +1,9 @@
 package com.wevolunteer.backend.controller;
 
 import com.wevolunteer.backend.model.Opportunity;
+import com.wevolunteer.backend.model.Registration;
 import com.wevolunteer.backend.service.OpportunityService;
+import com.wevolunteer.backend.service.RegistrationService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -13,14 +15,25 @@ import java.util.List;
 public class OpportunityController {
 
     private final OpportunityService opportunityService;
+    private final RegistrationService registrationService;
 
-    public OpportunityController(OpportunityService opportunityService) {
+    public OpportunityController(
+            OpportunityService opportunityService,
+            RegistrationService registrationService) {
         this.opportunityService = opportunityService;
+        this.registrationService = registrationService;
     }
 
     @GetMapping("/opportunities/{opportunityId}")
     public Opportunity getOpportunity(@PathVariable String opportunityId) {
         return opportunityService.getById(opportunityId);
+    }
+
+    @GetMapping("/opportunities/{opportunityId}/registrations")
+    public List<Registration> getOpportunityRegistrations(
+            @PathVariable String opportunityId) {
+
+        return registrationService.getRegistrationsByOpportunityId(opportunityId);
     }
 
     @GetMapping("/opportunities")

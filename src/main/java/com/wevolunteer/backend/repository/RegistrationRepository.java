@@ -7,4 +7,6 @@ import java.util.List;
 public interface RegistrationRepository {
 
     List<Registration> findByUserId(String userId);
+
+    List<Registration> findByOpportunityId(String opportunityId);
 }

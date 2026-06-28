@@ -41,14 +41,39 @@ public class DynamoDbRegistrationRepository implements RegistrationRepository {
 
     private Registration mapToRegistration(Map<String, AttributeValue> item) {
         return new Registration(
-                item.get("userId").s(),
-                item.get("opportunityId").s(),
-                item.get("title").s(),
-                item.get("date").s(),
-                item.get("location").s(),
-                item.get("organizationId").s(),
-                item.get("organizationName").s(),
-                item.get("registrationStatus").s()
+                getStringOrNull(item, "userId"),
+                getStringOrNull(item, "opportunityId"),
+                getStringOrNull(item, "title"),
+                getStringOrNull(item, "date"),
+                getStringOrNull(item, "location"),
+                getStringOrNull(item, "organizationId"),
+                getStringOrNull(item, "organizationName"),
+                getStringOrNull(item, "registrationStatus"),
+                getStringOrNull(item, "volunteerName"),
+                getStringOrNull(item, "email"),
+                getStringOrNull(item, "registeredAt")
         );
+    }
+
+    private String getStringOrNull(Map<String, AttributeValue> item, String key) {
+        return item.containsKey(key) ? item.get(key).s() : null;
+    }
+
+    @Override
+    public List<Registration> findByOpportunityId(String opportunityId) {
+        QueryRequest request = QueryRequest.builder()
+                .tableName(TABLE_NAME)
+                .keyConditionExpression("PK = :pk AND begins_with(SK, :skPrefix)")
+                .expressionAttributeValues(Map.of(
+                        ":pk", AttributeValue.fromS("OPPORTUNITY#" + opportunityId),
+                        ":skPrefix", AttributeValue.fromS("REGISTRATION#")
+                ))
+                .build();
+
+        QueryResponse response = dynamoDbClient.query(request);
+
+        return response.items().stream()
+                .map(this::mapToRegistration)
+                .toList();
     }
 }

@@ -18,4 +18,8 @@ public class RegistrationService {
     public List<Registration> getRegistrationsByUserId(String userId) {
         return registrationRepository.findByUserId(userId);
     }
+
+    public List<Registration> getRegistrationsByOpportunityId(String opportunityId) {
+        return registrationRepository.findByOpportunityId(opportunityId);
+    }
 }
