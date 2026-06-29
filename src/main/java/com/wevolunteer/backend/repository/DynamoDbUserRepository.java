@@ -6,6 +6,8 @@ import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.GetItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
+import software.amazon.awssdk.services.dynamodb.model.UpdateItemRequest;
+import software.amazon.awssdk.services.dynamodb.model.DeleteItemRequest;
 
 import java.util.Map;
 import java.util.Optional;
@@ -73,4 +75,44 @@ public class DynamoDbUserRepository implements UserRepository {
 
         return user;
     }
+
+    @Override
+    public User update(User user) {
+        UpdateItemRequest request = UpdateItemRequest.builder()
+                .tableName(TABLE_NAME)
+                .key(Map.of(
+                        "PK", AttributeValue.fromS("USER#" + user.userId()),
+                        "SK", AttributeValue.fromS("PROFILE")
+                ))
+                .updateExpression("SET #name = :name, email = :email, #role = :role")
+                .conditionExpression("attribute_exists(PK) AND attribute_exists(SK)")
+                .expressionAttributeNames(Map.of(
+                        "#name", "name",
+                        "#role", "role"
+                ))
+                .expressionAttributeValues(Map.of(
+                        ":name", AttributeValue.fromS(user.name()),
+                        ":email", AttributeValue.fromS(user.email()),
+                        ":role", AttributeValue.fromS(user.role())
+                ))
+                .build();
+
+        dynamoDbClient.updateItem(request);
+
+        return user;
+    }
+
+    @Override
+        public void deleteById(String userId) {
+        DeleteItemRequest request = DeleteItemRequest.builder()
+                .tableName(TABLE_NAME)
+                .key(Map.of(
+                        "PK", AttributeValue.fromS("USER#" + userId),
+                        "SK", AttributeValue.fromS("PROFILE")
+                ))
+                .conditionExpression("attribute_exists(PK) AND attribute_exists(SK)")
+                .build();
+
+        dynamoDbClient.deleteItem(request);
+        }
 }

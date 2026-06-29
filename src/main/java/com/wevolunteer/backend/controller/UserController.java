@@ -11,6 +11,9 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
+import com.wevolunteer.backend.dto.UpdateUserRequest;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 
 import java.util.List;
 
@@ -40,5 +43,18 @@ public class UserController {
     @PostMapping("/users")
     public User createUser(@Valid @RequestBody CreateUserRequest request) {
         return userService.createUser(request);
+    }
+
+    @PatchMapping("/users/{userId}")
+    public User updateUser(
+            @PathVariable String userId,
+            @Valid @RequestBody UpdateUserRequest request) {
+
+        return userService.updateUser(userId, request);
+    }
+
+    @DeleteMapping("/users/{userId}")
+    public void deleteUser(@PathVariable String userId) {
+        userService.deleteUser(userId);
     }
 }
