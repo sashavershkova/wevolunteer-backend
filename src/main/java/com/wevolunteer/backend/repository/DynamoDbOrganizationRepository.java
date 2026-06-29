@@ -5,6 +5,7 @@ import org.springframework.stereotype.Repository;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.GetItemRequest;
+import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
 
 import java.util.Map;
 import java.util.Optional;
@@ -53,5 +54,35 @@ public class DynamoDbOrganizationRepository implements OrganizationRepository {
 
     private String getStringOrNull(Map<String, AttributeValue> item, String key) {
         return item.containsKey(key) ? item.get(key).s() : null;
+    }
+
+    @Override
+    public Organization save(Organization organization) {
+        Map<String, AttributeValue> item = new java.util.HashMap<>();
+
+        item.put("PK", AttributeValue.fromS("ORG#" + organization.organizationId()));
+        item.put("SK", AttributeValue.fromS("PROFILE"));
+        item.put("entityType", AttributeValue.fromS("ORGANIZATION"));
+        item.put("organizationId", AttributeValue.fromS(organization.organizationId()));
+        item.put("name", AttributeValue.fromS(organization.name()));
+        item.put("email", AttributeValue.fromS(organization.email()));
+
+        if (organization.description() != null) {
+            item.put("description", AttributeValue.fromS(organization.description()));
+        }
+
+        if (organization.website() != null) {
+            item.put("website", AttributeValue.fromS(organization.website()));
+        }
+
+        PutItemRequest request = PutItemRequest.builder()
+                .tableName(TABLE_NAME)
+                .item(item)
+                .conditionExpression("attribute_not_exists(PK) AND attribute_not_exists(SK)")
+                .build();
+
+        dynamoDbClient.putItem(request);
+
+        return organization;
     }
 }
