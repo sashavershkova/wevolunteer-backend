@@ -21,4 +21,6 @@ public interface RegistrationRepository {
             String organizationId,
             String organizationName
     );
+
+    void cancelRegistration(String userId, String opportunityId, String opportunityDate);
 }

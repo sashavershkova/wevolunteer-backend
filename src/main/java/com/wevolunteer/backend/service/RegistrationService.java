@@ -67,4 +67,16 @@ public class RegistrationService {
                 opportunity.availableSpots() - 1
         );
     }
+
+    public void cancelRegistration(String userId, String opportunityId) {
+        Opportunity opportunity = opportunityRepository.findById(opportunityId)
+                .orElseThrow(() ->
+                        new RuntimeException("Opportunity not found: " + opportunityId));
+
+        registrationRepository.cancelRegistration(
+                userId,
+                opportunityId,
+                opportunity.date()
+        );
+    }
 }
