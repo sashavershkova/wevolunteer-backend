@@ -6,6 +6,7 @@ import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.GetItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
+import software.amazon.awssdk.services.dynamodb.model.UpdateItemRequest;
 
 import java.util.Map;
 import java.util.Optional;
@@ -82,6 +83,32 @@ public class DynamoDbOrganizationRepository implements OrganizationRepository {
                 .build();
 
         dynamoDbClient.putItem(request);
+
+        return organization;
+    }
+
+    @Override
+    public Organization update(Organization organization) {
+        UpdateItemRequest request = UpdateItemRequest.builder()
+                .tableName(TABLE_NAME)
+                .key(Map.of(
+                        "PK", AttributeValue.fromS("ORG#" + organization.organizationId()),
+                        "SK", AttributeValue.fromS("PROFILE")
+                ))
+                .updateExpression("SET #name = :name, description = :description, email = :email, website = :website")
+                .conditionExpression("attribute_exists(PK) AND attribute_exists(SK)")
+                .expressionAttributeNames(Map.of(
+                        "#name", "name"
+                ))
+                .expressionAttributeValues(Map.of(
+                        ":name", AttributeValue.fromS(organization.name()),
+                        ":description", AttributeValue.fromS(organization.description()),
+                        ":email", AttributeValue.fromS(organization.email()),
+                        ":website", AttributeValue.fromS(organization.website())
+                ))
+                .build();
+
+        dynamoDbClient.updateItem(request);
 
         return organization;
     }

@@ -12,6 +12,8 @@ import com.wevolunteer.backend.dto.CreateOrganizationRequest;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import com.wevolunteer.backend.dto.UpdateOrganizationRequest;
+import org.springframework.web.bind.annotation.PatchMapping;
 
 import java.util.List;
 
@@ -54,4 +56,12 @@ public class OrganizationController {
 
         return organizationService.createOrganization(request);
     }
+
+    @PatchMapping("/organizations/{organizationId}")
+    public Organization updateOrganization(
+            @PathVariable String organizationId,
+            @Valid @RequestBody UpdateOrganizationRequest request) {
+        return organizationService.updateOrganization(organizationId, request);
+
+}
 }

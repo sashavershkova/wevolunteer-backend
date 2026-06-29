@@ -4,6 +4,7 @@ import com.wevolunteer.backend.model.Organization;
 import com.wevolunteer.backend.repository.OrganizationRepository;
 import org.springframework.stereotype.Service;
 import com.wevolunteer.backend.dto.CreateOrganizationRequest;
+import com.wevolunteer.backend.dto.UpdateOrganizationRequest;
 
 @Service
 public class OrganizationService {
@@ -29,5 +30,20 @@ public class OrganizationService {
         );
 
         return organizationRepository.save(organization);
+    }
+
+    public Organization updateOrganization(
+            String organizationId,
+            UpdateOrganizationRequest request) {
+
+        Organization organization = new Organization(
+                organizationId,
+                request.name(),
+                request.description(),
+                request.email(),
+                request.website()
+        );
+
+        return organizationRepository.update(organization);
     }
 }
