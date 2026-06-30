@@ -3,6 +3,7 @@ package com.wevolunteer.backend.service;
 import com.wevolunteer.backend.model.Opportunity;
 import com.wevolunteer.backend.repository.OpportunityRepository;
 import org.springframework.stereotype.Service;
+import com.wevolunteer.backend.dto.CreateOpportunityRequest;
 
 import java.util.List;
 
@@ -72,5 +73,28 @@ public class OpportunityService {
 
     public void deleteOpportunity(String opportunityId) {
         opportunityRepository.deleteById(opportunityId);
+    }
+
+    public Opportunity createOpportunity(
+            String organizationId,
+            String organizationName,
+            CreateOpportunityRequest request) {
+
+        Opportunity opportunity = new Opportunity(
+                request.opportunityId(),
+                request.title(),
+                request.description(),
+                request.category(),
+                request.location(),
+                request.date(),
+                "OPEN",
+                organizationId,
+                organizationName,
+                request.capacity(),
+                0,
+                request.capacity()
+        );
+
+        return opportunityRepository.save(opportunity);
     }
 }

@@ -8,6 +8,7 @@ import software.amazon.awssdk.services.dynamodb.model.GetItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.QueryRequest;
 import software.amazon.awssdk.services.dynamodb.model.QueryResponse;
 import software.amazon.awssdk.services.dynamodb.model.DeleteItemRequest;
+import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -265,6 +266,45 @@ public class DynamoDbOpportunityRepository implements OpportunityRepository {
         return value != null && !value.isBlank();
     }
 
+    private Map<String, AttributeValue> buildOpportunityItem(Opportunity opportunity) {
+        String opportunityId = opportunity.opportunityId();
+        String dateSortKey = "DATE#" + opportunity.date() + "#OPPORTUNITY#" + opportunityId;
+
+        Map<String, AttributeValue> item = new java.util.HashMap<>();
+
+        item.put("PK", AttributeValue.fromS("OPPORTUNITY#" + opportunityId));
+        item.put("SK", AttributeValue.fromS("DETAILS"));
+        item.put("entityType", AttributeValue.fromS("OPPORTUNITY"));
+
+        item.put("opportunityId", AttributeValue.fromS(opportunityId));
+        item.put("title", AttributeValue.fromS(opportunity.title()));
+        item.put("description", AttributeValue.fromS(opportunity.description()));
+        item.put("category", AttributeValue.fromS(opportunity.category()));
+        item.put("location", AttributeValue.fromS(opportunity.location()));
+        item.put("date", AttributeValue.fromS(opportunity.date()));
+        item.put("status", AttributeValue.fromS(opportunity.status()));
+        item.put("organizationId", AttributeValue.fromS(opportunity.organizationId()));
+        item.put("organizationName", AttributeValue.fromS(opportunity.organizationName()));
+        item.put("capacity", AttributeValue.fromN(String.valueOf(opportunity.capacity())));
+        item.put("registeredCount", AttributeValue.fromN(String.valueOf(opportunity.registeredCount())));
+
+        if ("OPEN".equals(opportunity.status())) {
+                item.put("GSI1PK", AttributeValue.fromS("OPPORTUNITIES#OPEN"));
+                item.put("GSI1SK", AttributeValue.fromS(dateSortKey));
+        }
+
+        item.put("GSI2PK", AttributeValue.fromS("CATEGORY#" + opportunity.category()));
+        item.put("GSI2SK", AttributeValue.fromS(dateSortKey));
+
+        item.put("GSI3PK", AttributeValue.fromS("LOCATION#" + opportunity.location().replace(", WA", "")));
+        item.put("GSI3SK", AttributeValue.fromS(dateSortKey));
+
+        item.put("GSI4PK", AttributeValue.fromS("ORG#" + opportunity.organizationId()));
+        item.put("GSI4SK", AttributeValue.fromS(dateSortKey));
+
+        return item;
+        }
+
     private Opportunity mapToOpportunity(Map<String, AttributeValue> item) {
         int capacity = Integer.parseInt(item.get("capacity").n());
         int registeredCount = Integer.parseInt(item.get("registeredCount").n());
@@ -319,5 +359,18 @@ public class DynamoDbOpportunityRepository implements OpportunityRepository {
                 .build();
 
         dynamoDbClient.deleteItem(request);
+        }
+
+        @Override
+        public Opportunity save(Opportunity opportunity) {
+            PutItemRequest request = PutItemRequest.builder()
+                    .tableName(TABLE_NAME)
+                    .item(buildOpportunityItem(opportunity))
+                    .conditionExpression("attribute_not_exists(PK) AND attribute_not_exists(SK)")
+                    .build();
+
+            dynamoDbClient.putItem(request);
+
+            return opportunity;
         }
 }
