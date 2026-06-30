@@ -7,6 +7,7 @@ import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.GetItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.UpdateItemRequest;
+import software.amazon.awssdk.services.dynamodb.model.DeleteItemRequest;
 
 import java.util.Map;
 import java.util.Optional;
@@ -111,5 +112,19 @@ public class DynamoDbOrganizationRepository implements OrganizationRepository {
         dynamoDbClient.updateItem(request);
 
         return organization;
+    }
+
+    @Override
+    public void deleteById(String organizationId) {
+        DeleteItemRequest request = DeleteItemRequest.builder()
+                .tableName(TABLE_NAME)
+                .key(Map.of(
+                        "PK", AttributeValue.fromS("ORG#" + organizationId),
+                        "SK", AttributeValue.fromS("PROFILE")
+                ))
+                .conditionExpression("attribute_exists(PK) AND attribute_exists(SK)")
+                .build();
+
+        dynamoDbClient.deleteItem(request);
     }
 }

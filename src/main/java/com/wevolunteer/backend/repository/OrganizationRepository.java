@@ -11,4 +11,6 @@ public interface OrganizationRepository {
     Organization save(Organization organization);
 
     Organization update(Organization organization);
+
+    void deleteById(String organizationId);
 }

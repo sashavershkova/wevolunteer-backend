@@ -7,6 +7,7 @@ import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.GetItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.QueryRequest;
 import software.amazon.awssdk.services.dynamodb.model.QueryResponse;
+import software.amazon.awssdk.services.dynamodb.model.DeleteItemRequest;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -304,5 +305,19 @@ public class DynamoDbOpportunityRepository implements OpportunityRepository {
                 .build();
 
         return queryAndMap(request);
+        }
+
+        @Override
+        public void deleteById(String opportunityId) {
+        DeleteItemRequest request = DeleteItemRequest.builder()
+                .tableName(TABLE_NAME)
+                .key(Map.of(
+                        "PK", AttributeValue.fromS("OPPORTUNITY#" + opportunityId),
+                        "SK", AttributeValue.fromS("DETAILS")
+                ))
+                .conditionExpression("attribute_exists(PK) AND attribute_exists(SK)")
+                .build();
+
+        dynamoDbClient.deleteItem(request);
         }
 }

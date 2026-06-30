@@ -69,4 +69,8 @@ public class OpportunityService {
                 status
         );
     }
+
+    public void deleteOpportunity(String opportunityId) {
+        opportunityRepository.deleteById(opportunityId);
+    }
 }

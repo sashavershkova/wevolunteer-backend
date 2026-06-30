@@ -32,4 +32,6 @@ public interface OpportunityRepository {
             String organizationId,
             String status
     );
+
+    void deleteById(String opportunityId);
 }

@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import com.wevolunteer.backend.dto.UpdateOrganizationRequest;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 
 import java.util.List;
 
@@ -62,6 +63,10 @@ public class OrganizationController {
             @PathVariable String organizationId,
             @Valid @RequestBody UpdateOrganizationRequest request) {
         return organizationService.updateOrganization(organizationId, request);
+    }   
 
-}
+    @DeleteMapping("/organizations/{organizationId}")
+    public void deleteOrganization(@PathVariable String organizationId) {
+        organizationService.deleteOrganization(organizationId);
+    }
 }
