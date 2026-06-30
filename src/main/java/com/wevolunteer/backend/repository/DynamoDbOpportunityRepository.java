@@ -10,6 +10,7 @@ import software.amazon.awssdk.services.dynamodb.model.QueryResponse;
 import software.amazon.awssdk.services.dynamodb.model.DeleteItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
+import software.amazon.awssdk.services.dynamodb.model.UpdateItemRequest;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -387,4 +388,43 @@ public class DynamoDbOpportunityRepository implements OpportunityRepository {
 
             return opportunity;
         }
+
+        @Override
+    public Opportunity close(String opportunityId) {
+        Opportunity existingOpportunity = findById(opportunityId)
+                .orElseThrow(() -> new RuntimeException("Opportunity not found: " + opportunityId));
+
+        UpdateItemRequest request = UpdateItemRequest.builder()
+                .tableName(TABLE_NAME)
+                .key(Map.of(
+                        "PK", AttributeValue.fromS("OPPORTUNITY#" + opportunityId),
+                        "SK", AttributeValue.fromS("DETAILS")
+                ))
+                .updateExpression("SET #status = :closedStatus REMOVE GSI1PK, GSI1SK")
+                .conditionExpression("attribute_exists(PK) AND attribute_exists(SK)")
+                .expressionAttributeNames(Map.of(
+                        "#status", "status"
+                ))
+                .expressionAttributeValues(Map.of(
+                        ":closedStatus", AttributeValue.fromS("CLOSED")
+                ))
+                .build();
+
+        dynamoDbClient.updateItem(request);
+
+        return new Opportunity(
+                existingOpportunity.opportunityId(),
+                existingOpportunity.title(),
+                existingOpportunity.description(),
+                existingOpportunity.category(),
+                existingOpportunity.location(),
+                existingOpportunity.date(),
+                "CLOSED",
+                existingOpportunity.organizationId(),
+                existingOpportunity.organizationName(),
+                existingOpportunity.capacity(),
+                existingOpportunity.registeredCount(),
+                existingOpportunity.availableSpots()
+        );
+    }
 }

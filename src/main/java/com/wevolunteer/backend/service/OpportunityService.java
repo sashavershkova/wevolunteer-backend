@@ -122,4 +122,8 @@ public class OpportunityService {
 
         return opportunityRepository.update(updatedOpportunity);
     }
+
+    public Opportunity closeOpportunity(String opportunityId) {
+        return opportunityRepository.close(opportunityId);
+    }
 }

@@ -38,4 +38,6 @@ public interface OpportunityRepository {
     Opportunity save(Opportunity opportunity);
 
     Opportunity update(Opportunity opportunity);
+
+    Opportunity close(String opportunityId);
 }

@@ -97,4 +97,9 @@ public class OpportunityController {
 
         return opportunityService.updateOpportunity(opportunityId, request);
     }
+
+    @PatchMapping("/opportunities/{opportunityId}/close")
+    public Opportunity closeOpportunity(@PathVariable String opportunityId) {
+        return opportunityService.closeOpportunity(opportunityId);
+    }
 }
