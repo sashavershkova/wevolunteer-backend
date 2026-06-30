@@ -5,6 +5,7 @@ import com.wevolunteer.backend.dto.UpdateUserRequest;
 import com.wevolunteer.backend.model.Registration;
 import com.wevolunteer.backend.model.User;
 import com.wevolunteer.backend.repository.UserRepository;
+import com.wevolunteer.backend.exception.NotFoundException;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -24,7 +25,7 @@ public class UserService {
 
     public User getById(String userId) {
         return userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found: " + userId));
+                .orElseThrow(() -> new NotFoundException("User not found: " + userId));
     }
 
     public User createUser(CreateUserRequest request) {
@@ -50,6 +51,8 @@ public class UserService {
     }
 
     public void deleteUser(String userId) {
+        getById(userId);
+
         List<Registration> registrations = registrationService.getRegistrationsByUserId(userId);
 
         for (Registration registration : registrations) {

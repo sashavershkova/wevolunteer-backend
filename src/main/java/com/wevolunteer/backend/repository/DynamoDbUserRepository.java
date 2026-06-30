@@ -1,9 +1,11 @@
 package com.wevolunteer.backend.repository;
 
+import com.wevolunteer.backend.exception.ConflictException;
 import com.wevolunteer.backend.model.User;
 import org.springframework.stereotype.Repository;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
+import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException;
 import software.amazon.awssdk.services.dynamodb.model.GetItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.UpdateItemRequest;
@@ -71,7 +73,11 @@ public class DynamoDbUserRepository implements UserRepository {
                 .conditionExpression("attribute_not_exists(PK) AND attribute_not_exists(SK)")
                 .build();
 
-        dynamoDbClient.putItem(request);
+        try {
+            dynamoDbClient.putItem(request);
+        } catch (ConditionalCheckFailedException e) {
+            throw new ConflictException("User '" + user.userId() + "' already exists.");
+        }
 
         return user;
     }

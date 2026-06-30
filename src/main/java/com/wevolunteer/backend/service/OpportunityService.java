@@ -5,7 +5,10 @@ import com.wevolunteer.backend.repository.OpportunityRepository;
 import org.springframework.stereotype.Service;
 import com.wevolunteer.backend.dto.CreateOpportunityRequest;
 import com.wevolunteer.backend.dto.UpdateOpportunityRequest;
+import com.wevolunteer.backend.exception.NotFoundException;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 
 @Service
@@ -19,7 +22,7 @@ public class OpportunityService {
 
     public Opportunity getById(String opportunityId) {
         return opportunityRepository.findById(opportunityId)
-                .orElseThrow(() -> new RuntimeException("Opportunity not found: " + opportunityId));
+                .orElseThrow(() -> new NotFoundException("Opportunity not found: " + opportunityId));
     }
 
     public List<Opportunity> getOpenOpportunities() {
@@ -39,6 +42,7 @@ public class OpportunityService {
     }
 
     public List<Opportunity> getOpenOpportunitiesByDateRange(String startDate, String endDate) {
+        validateDateRange(startDate, endDate);
         return opportunityRepository.findOpenOpportunitiesByDateRange(startDate, endDate);
     }
 
@@ -52,6 +56,8 @@ public class OpportunityService {
             String organizationId,
             String startDate,
             String endDate) {
+
+        validateDateRange(startDate, endDate);
 
         return opportunityRepository.findOpenOpportunitiesWithFilters(
                 category,
@@ -125,5 +131,24 @@ public class OpportunityService {
 
     public Opportunity closeOpportunity(String opportunityId) {
         return opportunityRepository.close(opportunityId);
+    }
+
+    private void validateDateRange(String startDate, String endDate) {
+        if (startDate == null || startDate.isBlank() || endDate == null || endDate.isBlank()) {
+            return;
+        }
+
+        LocalDate start;
+        LocalDate end;
+        try {
+            start = LocalDate.parse(startDate);
+            end = LocalDate.parse(endDate);
+        } catch (DateTimeParseException e) {
+            throw new IllegalArgumentException("startDate and endDate must be valid dates in YYYY-MM-DD format");
+        }
+
+        if (end.isBefore(start)) {
+            throw new IllegalArgumentException("endDate must be on or after startDate");
+        }
     }
 }

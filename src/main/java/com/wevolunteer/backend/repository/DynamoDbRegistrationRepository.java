@@ -1,14 +1,17 @@
 package com.wevolunteer.backend.repository;
 
+import com.wevolunteer.backend.exception.ConflictException;
 import com.wevolunteer.backend.model.Registration;
 import org.springframework.stereotype.Repository;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
+import software.amazon.awssdk.services.dynamodb.model.CancellationReason;
 import software.amazon.awssdk.services.dynamodb.model.Put;
 import software.amazon.awssdk.services.dynamodb.model.QueryRequest;
 import software.amazon.awssdk.services.dynamodb.model.QueryResponse;
 import software.amazon.awssdk.services.dynamodb.model.TransactWriteItem;
 import software.amazon.awssdk.services.dynamodb.model.TransactWriteItemsRequest;
+import software.amazon.awssdk.services.dynamodb.model.TransactionCanceledException;
 import software.amazon.awssdk.services.dynamodb.model.Update;
 import software.amazon.awssdk.services.dynamodb.model.Delete;
 
@@ -141,7 +144,29 @@ public class DynamoDbRegistrationRepository implements RegistrationRepository {
                         )
                         .build();
 
-                dynamoDbClient.transactWriteItems(transaction);
+                try {
+                        dynamoDbClient.transactWriteItems(transaction);
+                } catch (TransactionCanceledException e) {
+                        List<CancellationReason> reasons = e.cancellationReasons();
+
+                        if (isConditionalCheckFailed(reasons, 1) || isConditionalCheckFailed(reasons, 2)) {
+                                throw new ConflictException(
+                                        "User '" + userId + "' is already registered for opportunity '" + opportunityId + "'.");
+                        }
+
+                        if (isConditionalCheckFailed(reasons, 0)) {
+                                throw new ConflictException(
+                                        "Opportunity '" + opportunityId + "' is no longer open or has reached capacity.");
+                        }
+
+                        throw e;
+                }
+        }
+
+        private boolean isConditionalCheckFailed(List<CancellationReason> reasons, int index) {
+                return reasons != null
+                        && index < reasons.size()
+                        && "ConditionalCheckFailed".equals(reasons.get(index).code());
         }
 
         private Registration mapToRegistration(Map<String, AttributeValue> item) {

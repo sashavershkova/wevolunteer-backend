@@ -4,6 +4,7 @@ import com.wevolunteer.backend.model.Opportunity;
 import org.springframework.stereotype.Repository;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
+import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException;
 import software.amazon.awssdk.services.dynamodb.model.GetItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.QueryRequest;
 import software.amazon.awssdk.services.dynamodb.model.QueryResponse;
@@ -11,6 +12,8 @@ import software.amazon.awssdk.services.dynamodb.model.DeleteItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.UpdateItemRequest;
+import com.wevolunteer.backend.exception.ConflictException;
+import com.wevolunteer.backend.exception.NotFoundException;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -371,7 +374,12 @@ public class DynamoDbOpportunityRepository implements OpportunityRepository {
                     .conditionExpression("attribute_not_exists(PK) AND attribute_not_exists(SK)")
                     .build();
 
-            dynamoDbClient.putItem(request);
+            try {
+                dynamoDbClient.putItem(request);
+            } catch (ConditionalCheckFailedException e) {
+                throw new ConflictException(
+                        "An opportunity with ID '" + opportunity.opportunityId() + "' already exists.");
+            }
 
             return opportunity;
         }
@@ -392,7 +400,7 @@ public class DynamoDbOpportunityRepository implements OpportunityRepository {
         @Override
     public Opportunity close(String opportunityId) {
         Opportunity existingOpportunity = findById(opportunityId)
-                .orElseThrow(() -> new RuntimeException("Opportunity not found: " + opportunityId));
+                .orElseThrow(() -> new NotFoundException("Opportunity not found: " + opportunityId));
 
         UpdateItemRequest request = UpdateItemRequest.builder()
                 .tableName(TABLE_NAME)

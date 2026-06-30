@@ -9,6 +9,7 @@ import com.wevolunteer.backend.repository.UserRepository;
 import org.springframework.stereotype.Service;
 import com.wevolunteer.backend.dto.RegisterRequest;
 import com.wevolunteer.backend.dto.RegisterResponse;
+import com.wevolunteer.backend.exception.NotFoundException;
 
 import java.util.List;
 
@@ -41,11 +42,11 @@ public class RegistrationService {
 
         User user = userRepository.findById(request.userId())
                 .orElseThrow(() ->
-                        new RuntimeException("User not found: " + request.userId()));
+                        new NotFoundException("User not found: " + request.userId()));
 
         Opportunity opportunity = opportunityRepository.findById(request.opportunityId())
                 .orElseThrow(() ->
-                        new RuntimeException("Opportunity not found: " + request.opportunityId()));
+                        new NotFoundException("Opportunity not found: " + request.opportunityId()));
 
         registrationRepository.registerUserForOpportunity(
                 user.userId(),
@@ -71,7 +72,7 @@ public class RegistrationService {
     public void cancelRegistration(String userId, String opportunityId) {
         Opportunity opportunity = opportunityRepository.findById(opportunityId)
                 .orElseThrow(() ->
-                        new RuntimeException("Opportunity not found: " + opportunityId));
+                        new NotFoundException("Opportunity not found: " + opportunityId));
 
         registrationRepository.cancelRegistration(
                 userId,

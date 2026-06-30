@@ -10,6 +10,7 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import com.wevolunteer.backend.dto.CreateOrganizationRequest;
 import com.wevolunteer.backend.dto.UpdateOrganizationRequest;
+import com.wevolunteer.backend.exception.NotFoundException;
 
 import java.util.List;
 
@@ -32,7 +33,7 @@ public class OrganizationService {
 
     public Organization getById(String organizationId) {
         return organizationRepository.findById(organizationId)
-                .orElseThrow(() -> new RuntimeException("Organization not found: " + organizationId));
+                .orElseThrow(() -> new NotFoundException("Organization not found: " + organizationId));
     }
 
     public Organization createOrganization(CreateOrganizationRequest request) {
@@ -51,6 +52,8 @@ public class OrganizationService {
             String organizationId,
             UpdateOrganizationRequest request) {
 
+        getById(organizationId);
+
         Organization organization = new Organization(
                 organizationId,
                 request.name(),
@@ -63,6 +66,8 @@ public class OrganizationService {
     }
 
     public void deleteOrganization(String organizationId) {
+
+        getById(organizationId);
 
         List<Opportunity> opportunities =
                 opportunityService.getAllOpportunitiesByOrganizationId(organizationId);
