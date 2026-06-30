@@ -9,6 +9,7 @@ import software.amazon.awssdk.services.dynamodb.model.QueryRequest;
 import software.amazon.awssdk.services.dynamodb.model.QueryResponse;
 import software.amazon.awssdk.services.dynamodb.model.DeleteItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
+import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -367,6 +368,19 @@ public class DynamoDbOpportunityRepository implements OpportunityRepository {
                     .tableName(TABLE_NAME)
                     .item(buildOpportunityItem(opportunity))
                     .conditionExpression("attribute_not_exists(PK) AND attribute_not_exists(SK)")
+                    .build();
+
+            dynamoDbClient.putItem(request);
+
+            return opportunity;
+        }
+
+        @Override
+        public Opportunity update(Opportunity opportunity) {
+            PutItemRequest request = PutItemRequest.builder()
+                    .tableName(TABLE_NAME)
+                    .item(buildOpportunityItem(opportunity))
+                    .conditionExpression("attribute_exists(PK) AND attribute_exists(SK)")
                     .build();
 
             dynamoDbClient.putItem(request);

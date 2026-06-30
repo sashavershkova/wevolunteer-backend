@@ -8,6 +8,10 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import com.wevolunteer.backend.dto.UpdateOpportunityRequest;
+import org.springframework.web.bind.annotation.PatchMapping;
+import jakarta.validation.Valid;
+import org.springframework.web.bind.annotation.RequestBody;
 
 import java.util.List;
 
@@ -84,5 +88,13 @@ public class OpportunityController {
         }
 
         return opportunityService.getOpenOpportunities();
+    }
+
+    @PatchMapping("/opportunities/{opportunityId}")
+    public Opportunity updateOpportunity(
+            @PathVariable String opportunityId,
+            @Valid @RequestBody UpdateOpportunityRequest request) {
+
+        return opportunityService.updateOpportunity(opportunityId, request);
     }
 }

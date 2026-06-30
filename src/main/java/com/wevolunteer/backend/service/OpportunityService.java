@@ -4,6 +4,7 @@ import com.wevolunteer.backend.model.Opportunity;
 import com.wevolunteer.backend.repository.OpportunityRepository;
 import org.springframework.stereotype.Service;
 import com.wevolunteer.backend.dto.CreateOpportunityRequest;
+import com.wevolunteer.backend.dto.UpdateOpportunityRequest;
 
 import java.util.List;
 
@@ -96,5 +97,29 @@ public class OpportunityService {
         );
 
         return opportunityRepository.save(opportunity);
+    }
+
+    public Opportunity updateOpportunity(
+            String opportunityId,
+            UpdateOpportunityRequest request) {
+
+        Opportunity existingOpportunity = getById(opportunityId);
+
+        Opportunity updatedOpportunity = new Opportunity(
+                opportunityId,
+                request.title(),
+                request.description(),
+                request.category(),
+                request.location(),
+                request.date(),
+                request.status(),
+                existingOpportunity.organizationId(),
+                existingOpportunity.organizationName(),
+                request.capacity(),
+                existingOpportunity.registeredCount(),
+                request.capacity() - existingOpportunity.registeredCount()
+        );
+
+        return opportunityRepository.update(updatedOpportunity);
     }
 }

@@ -36,4 +36,6 @@ public interface OpportunityRepository {
     void deleteById(String opportunityId);
 
     Opportunity save(Opportunity opportunity);
+
+    Opportunity update(Opportunity opportunity);
 }
