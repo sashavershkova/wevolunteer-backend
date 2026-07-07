@@ -97,6 +97,11 @@ The application will be available at:
 http://localhost:8080
 ```
 
+
+> **Note:** Browsing to the bare root URL (`http://localhost:8080/`) returns a
+> `500` error. This is expected — `/` is not a defined endpoint. Use
+> `/opportunities` (or any endpoint in the API Reference below) to verify setup.
+
 ---
 
 ## Verify the Setup
