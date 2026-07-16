@@ -51,6 +51,13 @@ public class UserController {
         return userService.createUser(jwt.getSubject(), request);
     }
 
+    @GetMapping("/users/me")
+    public User getCurrentUser(
+            @AuthenticationPrincipal Jwt jwt
+    ) {
+        return userService.getById(jwt.getSubject());
+    }
+
     @PatchMapping("/users/{userId}")
     public User updateUser(
             @PathVariable String userId,
