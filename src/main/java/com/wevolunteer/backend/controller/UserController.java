@@ -1,19 +1,21 @@
 package com.wevolunteer.backend.controller;
 
 import com.wevolunteer.backend.dto.CreateUserRequest;
+import com.wevolunteer.backend.dto.UpdateUserRequest;
 import com.wevolunteer.backend.model.Registration;
 import com.wevolunteer.backend.model.User;
 import com.wevolunteer.backend.service.RegistrationService;
 import com.wevolunteer.backend.service.UserService;
 import jakarta.validation.Valid;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
-import com.wevolunteer.backend.dto.UpdateUserRequest;
-import org.springframework.web.bind.annotation.PatchMapping;
-import org.springframework.web.bind.annotation.DeleteMapping;
 
 import java.util.List;
 
@@ -25,7 +27,8 @@ public class UserController {
 
     public UserController(
             UserService userService,
-            RegistrationService registrationService) {
+            RegistrationService registrationService
+    ) {
         this.userService = userService;
         this.registrationService = registrationService;
     }
@@ -41,15 +44,25 @@ public class UserController {
     }
 
     @PostMapping("/users")
-    public User createUser(@Valid @RequestBody CreateUserRequest request) {
-        return userService.createUser(request);
+    public User createUser(
+            @AuthenticationPrincipal Jwt jwt,
+            @Valid @RequestBody CreateUserRequest request
+    ) {
+        return userService.createUser(jwt.getSubject(), request);
+    }
+
+    @GetMapping("/users/me")
+    public User getCurrentUser(
+            @AuthenticationPrincipal Jwt jwt
+    ) {
+        return userService.getById(jwt.getSubject());
     }
 
     @PatchMapping("/users/{userId}")
     public User updateUser(
             @PathVariable String userId,
-            @Valid @RequestBody UpdateUserRequest request) {
-
+            @Valid @RequestBody UpdateUserRequest request
+    ) {
         return userService.updateUser(userId, request);
     }
 

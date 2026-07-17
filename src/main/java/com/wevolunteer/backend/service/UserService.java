@@ -28,9 +28,9 @@ public class UserService {
                 .orElseThrow(() -> new NotFoundException("User not found: " + userId));
     }
 
-    public User createUser(CreateUserRequest request) {
+    public User createUser(String userId, CreateUserRequest request) {
         User user = new User(
-                request.userId(),
+                userId,
                 request.name(),
                 request.email(),
                 request.role()
