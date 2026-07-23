@@ -4,28 +4,28 @@ Spring Boot REST API for the WeVolunteer capstone project.
 
 ---
 
-## Quick Start
+# Quick Start
 
 1. Clone the repository.
-2. Configure your AWS credentials using `aws configure`.
-3. Build the project using `./gradlew build`.
-4. Start the backend using `./gradlew bootRun`.
-5. Verify the setup by calling `GET /opportunities`.
+2. Log in to AWS.
+3. Start the backend.
+4. Verify the setup.
 
 ---
 
-## Prerequisites
+# Prerequisites
 
-Before running the application, install:
+Install:
 
 - Java 21
 - Git
-- AWS CLI
+- Docker Desktop
+- AWS CLI v2
 - IntelliJ IDEA (recommended)
 
 ---
 
-## Clone the Repository
+# Clone the Repository
 
 ```bash
 git clone https://github.com/sashavershkova/wevolunteer-backend.git
@@ -34,56 +34,61 @@ cd wevolunteer-backend
 
 ---
 
-## AWS Credentials
+# AWS Credentials
 
-Each team member has an individual IAM user and AWS access keys (ask Sasha).
+The backend accesses shared AWS resources (DynamoDB, Cognito, etc.).
 
-**Do not share your credentials with anyone.**
+Each teammate has their own IAM (Identity and Access Management) user.
 
-Configure them locally using the AWS CLI:
+Before running the backend:
 
-```bash
-aws configure
-```
-
-When prompted, enter:
-
-```text
-AWS Access Key ID:     <provided individually>
-AWS Secret Access Key: <provided individually>
-Default region name:   us-east-1
-Default output format: json
-```
-
-Alternatively, you can configure the credentials using environment variables:
+Login to AWS:
 
 ```bash
-export AWS_ACCESS_KEY_ID=<your-access-key>
-export AWS_SECRET_ACCESS_KEY=<your-secret-key>
-export AWS_REGION=us-east-1
+aws login
+```
+
+Export temporary credentials:
+
+```bash
+aws configure export-credentials --format env
+```
+
+Copy the generated environment variables into the terminal that will run the backend.
+
+Verify your credentials:
+
+```bash
+aws sts get-caller-identity
+```
+
+Alternatively, use the helper script:
+
+```bash
+./run.sh
 ```
 
 ---
 
-## Build the Project
+# Build the Project
 
-Build the project (this automatically downloads all required dependencies the first time):
+Build the project:
 
 ```bash
 ./gradlew build
 ```
 
-Run the test suite:
+Run the tests:
 
 ```bash
 ./gradlew test
 ```
 
-> **Note:** Unit tests are currently being added.
+> Unit tests are currently being added. The CI/CD pipeline already executes the test suite automatically before building the Docker image.
 
 ---
 
-## Run the Application
+# Run the Application
 
 Start the backend:
 
@@ -91,56 +96,158 @@ Start the backend:
 ./gradlew bootRun
 ```
 
-The application will be available at:
+Application URL:
 
-```text
+```
 http://localhost:8080
 ```
 
-
-> **Note:** Browsing to the bare root URL (`http://localhost:8080/`) returns a
-> `500` error. This is expected — `/` is not a defined endpoint. Use
-> `/opportunities` (or any endpoint in the API Reference below) to verify setup.
+> Visiting `http://localhost:8080/` returns an error because the root endpoint is not implemented. Use one of the API endpoints below.
 
 ---
 
-## Verify the Setup
+# Verify the Setup
 
-Open your browser or Postman and call:
+Example:
 
 ```http
 GET http://localhost:8080/opportunities
 ```
 
-If everything is configured correctly, you should receive a JSON list of volunteer opportunities.
+---
+
+# Docker
+
+Build the Docker image locally:
+
+```bash
+docker build -t wevolunteer-backend .
+```
+
+Run it:
+
+```bash
+docker run -p 8080:8080 wevolunteer-backend
+```
 
 ---
 
-## DynamoDB
+# Authentication
 
-The application uses the shared **WeVolunteer** DynamoDB table hosted in Sasha's AWS account.
+Authentication is handled by **Amazon Cognito**.
+
+The frontend authenticates users using the Cognito Hosted UI.
+
+Protected backend endpoints require a valid Bearer access token.
+
+Example:
+
+```http
+Authorization: Bearer eyJhbGc...
+```
+
+Examples of protected endpoints:
+
+```
+GET /users/me
+POST /users
+```
+
+---
+
+# Health Check
+
+The backend exposes
+
+```http
+GET /actuator/health
+```
+
+Amazon ECS (Elastic Container Service) and the Application Load Balancer use this endpoint during deployments to verify that the application started successfully before routing traffic to it.
+
+---
+
+# Continuous Integration / Continuous Deployment (CI/CD)
+
+The backend is automatically built and deployed using AWS.
+
+Deployment workflow:
+
+```
+GitHub (main)
+        ↓
+AWS CodePipeline
+        ↓
+AWS CodeBuild
+        ↓
+Amazon ECR
+        ↓
+Amazon ECS (Fargate)
+        ↓
+Application Load Balancer
+```
+
+Whenever code is pushed to the `main` branch:
+
+1. CodePipeline detects the GitHub push.
+2. CodeBuild runs the Gradle build.
+3. The test suite executes.
+4. A Docker image is built.
+5. The image is pushed to Amazon Elastic Container Registry (Amazon ECR).
+6. Amazon ECS deploys the new container.
+7. The Application Load Balancer verifies `/actuator/health`.
+8. If deployment fails, Amazon ECS automatically rolls back to the previously running version.
+
+---
+
+# Architecture
+
+```
+React + Vite
+        ↓
+Amazon Cognito
+        ↓
+Spring Boot
+        ↓
+Amazon DynamoDB
+
+Hosted on:
+Amazon ECS (Fargate)
+
+Container images:
+Amazon ECR
+
+Deployment:
+AWS CodePipeline + AWS CodeBuild
+```
+
+---
+
+# DynamoDB
+
+The application uses the shared **WeVolunteer** DynamoDB table hosted in the team's AWS account.
 
 No additional setup is required.
 
 Please avoid modifying or deleting data created by other teammates.
 
-When creating your own test data, include your name or initials in the IDs, for example:
+When creating your own test data, include your name or initials in the IDs.
 
-```text
-user-masha-1
-org-masha-1
-opp-masha-1
+Example:
+
 ```
-
-This helps everyone identify their own test data and avoids accidental conflicts.
+user-sasha-1
+org-sasha-1
+opp-sasha-1
+```
 
 ---
 
-## Seed Data
+# Seed Data
 
-The shared DynamoDB table already contains sample data that can be used for testing.
+The shared DynamoDB table already contains sample data.
 
-### Organizations
+## Organizations
 
 | ID | Name |
 |----|------|
@@ -148,7 +255,7 @@ The shared DynamoDB table already contains sample data that can be used for test
 | org2 | Green City Cleanup |
 | org3 | Happy Paws Shelter |
 
-### Opportunities
+## Opportunities
 
 | ID | Title | Organization | Status |
 |----|-------|--------------|--------|
@@ -160,7 +267,7 @@ The shared DynamoDB table already contains sample data that can be used for test
 | opp6 | Food Donation Pickup | org1 | OPEN |
 | opp7 | Closed Pantry Sorting Shift | org1 | CLOSED |
 
-### Users
+## Users
 
 | ID | Name |
 |----|------|
@@ -174,46 +281,50 @@ The shared DynamoDB table already contains sample data that can be used for test
 | user9 | Peregrin Took |
 | user10 | Samwise Gamgee |
 
-> **Please do not modify or delete these seeded records.**
-> Create your own users, organizations, and opportunities for testing.
+Please do not modify or delete the seeded records.
 
 ---
 
-## Common Issues
+# Common Issues
 
-### AccessDeniedException
+## AccessDeniedException
 
-Verify that:
+Verify:
 
-- Your AWS credentials are configured correctly.
+- AWS credentials are configured.
+- You are logged in.
 - Your IAM user belongs to the `WeVolunteerDevelopers` group.
-- Your AWS region is set to `us-east-1`.
+- Region is `us-east-1`.
 
-Check your current AWS configuration:
+Check:
 
 ```bash
-aws configure list
+aws sts get-caller-identity
 ```
 
-If the issue persists, contact Sasha.
+---
+
+## Unable to Connect to DynamoDB
+
+Verify:
+
+- AWS credentials
+- Internet connection
+- Region is `us-east-1`
 
 ---
 
-### Unable to Connect to DynamoDB
+## Docker Build Fails with HTTP 429
 
-Verify that:
-
-- Your AWS credentials are configured correctly.
-- Your internet connection is available.
-- The backend is using the correct AWS region (`us-east-1`).
+The project uses Amazon ECR Public base images instead of Docker Hub to avoid Docker Hub rate limits during CI/CD builds.
 
 ---
 
-## API Reference
+# API Reference
 
-Base URL:
+Base URL
 
-```text
+```
 http://localhost:8080
 ```
 
@@ -221,71 +332,61 @@ http://localhost:8080
 
 # Volunteer Endpoints
 
-### Get all open opportunities
+## Get all open opportunities
 
 ```http
 GET /opportunities
 ```
 
----
-
-### Filter by category
+## Filter by category
 
 ```http
 GET /opportunities?category=Food
 ```
 
----
-
-### Filter by location
+## Filter by location
 
 ```http
 GET /opportunities?location=Seattle
 ```
 
----
-
-### Filter by organization
+## Filter by organization
 
 ```http
 GET /opportunities?organizationId=org1
 ```
 
----
-
-### Filter by date range
+## Filter by date range
 
 ```http
 GET /opportunities?startDate=2026-07-10&endDate=2026-07-20
 ```
 
----
-
-### Combined filters
+## Combined filters
 
 ```http
 GET /opportunities?location=Seattle&category=Food&organizationId=org1&startDate=2026-07-10&endDate=2026-07-25
 ```
 
----
-
-### Get opportunity details
+## Get opportunity details
 
 ```http
 GET /opportunities/opp1
 ```
 
----
-
-### Get user profile
+## Get user profile
 
 ```http
 GET /users/user1
 ```
 
----
+## Get logged-in user
 
-### Get user registrations
+```http
+GET /users/me
+```
+
+## Get user registrations
 
 ```http
 GET /users/user1/registrations
@@ -295,39 +396,31 @@ GET /users/user1/registrations
 
 # Organization Endpoints
 
-### Get organization profile
+## Get organization profile
 
 ```http
 GET /organizations/org1
 ```
 
----
-
-### Get all organization opportunities
+## Get all organization opportunities
 
 ```http
 GET /organizations/org1/opportunities
 ```
 
----
-
-### Get OPEN opportunities
+## Get OPEN opportunities
 
 ```http
 GET /organizations/org1/opportunities?status=OPEN
 ```
 
----
-
-### Get CLOSED opportunities
+## Get CLOSED opportunities
 
 ```http
 GET /organizations/org1/opportunities?status=CLOSED
 ```
 
----
-
-### Get opportunity registrations
+## Get opportunity registrations
 
 ```http
 GET /opportunities/opp1/registrations
@@ -337,167 +430,85 @@ GET /opportunities/opp1/registrations
 
 # Write Endpoints
 
-### Create user
+## Create user
 
 ```http
 POST /users
 ```
 
-```json
-{
-  "userId": "user-yourname-1",
-  "name": "Your Name",
-  "email": "your.email@example.com",
-  "role": "VOLUNTEER"
-}
-```
-
----
-
-### Update user
+## Update user
 
 ```http
-PATCH /users/user-yourname-1
+PATCH /users/{userId}
 ```
 
-```json
-{
-  "name": "Updated Name",
-  "email": "updated@example.com",
-  "role": "VOLUNTEER"
-}
-```
-
----
-
-### Delete user
+## Delete user
 
 ```http
-DELETE /users/user-yourname-1
+DELETE /users/{userId}
 ```
 
----
-
-### Create organization
+## Create organization
 
 ```http
 POST /organizations
 ```
 
-```json
-{
-  "organizationId": "org-yourname-1",
-  "name": "Test Organization",
-  "email": "organization@example.com",
-  "location": "Seattle, WA"
-}
-```
-
----
-
-### Update organization
+## Update organization
 
 ```http
-PATCH /organizations/org-yourname-1
+PATCH /organizations/{organizationId}
 ```
 
-```json
-{
-  "name": "Updated Organization",
-  "email": "updated@example.com",
-  "location": "Bellevue, WA"
-}
-```
-
----
-
-### Delete organization
+## Delete organization
 
 ```http
-DELETE /organizations/org-yourname-1
+DELETE /organizations/{organizationId}
 ```
 
----
-
-### Create opportunity
+## Create opportunity
 
 ```http
-POST /organizations/org1/opportunities
+POST /organizations/{organizationId}/opportunities
 ```
 
-```json
-{
-  "opportunityId": "opp-yourname-1",
-  "title": "Food Bank Volunteer",
-  "description": "Help sort food donations.",
-  "category": "Food",
-  "location": "Seattle",
-  "date": "2026-08-15",
-  "capacity": 10
-}
-```
-
----
-
-### Update opportunity
+## Update opportunity
 
 ```http
-PATCH /opportunities/opp-yourname-1
+PATCH /opportunities/{opportunityId}
 ```
 
-```json
-{
-  "title": "Updated Title",
-  "description": "Updated description.",
-  "category": "Food",
-  "location": "Seattle",
-  "date": "2026-08-20",
-  "capacity": 15
-}
-```
-
----
-
-### Close opportunity
+## Close opportunity
 
 ```http
-PATCH /opportunities/opp-yourname-1/close
+PATCH /opportunities/{opportunityId}/close
 ```
 
----
-
-### Register for an opportunity
+## Register for an opportunity
 
 ```http
 POST /registrations
 ```
 
-```json
-{
-  "userId": "user1",
-  "opportunityId": "opp1"
-}
-```
-
----
-
-### Cancel registration
+## Cancel registration
 
 ```http
-DELETE /registrations/user1/opp1
+DELETE /registrations/{userId}/{opportunityId}
 ```
 
 ---
 
-## Development Guidelines
+# Development Guidelines
 
-- Do **not** modify or delete the seeded data.
+- Do not modify seeded data.
 - Create your own test data using your name or initials.
 - Never commit AWS credentials or secrets.
-- Before committing, verify the project builds successfully:
+- Run
 
 ```bash
 ./gradlew build
 ```
 
-- If you add or modify endpoints, please update this README so everyone has the latest API reference.
+before committing.
+
+- If you add or modify endpoints, update this README so the documentation stays current.
