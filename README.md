@@ -1,6 +1,6 @@
 # WeVolunteer Backend
 
-Spring Boot REST API for the WeVolunteer capstone project.
+Spring Boot REST API for the WeVolunteer ADA C#25 capstone project.
 
 ---
 
