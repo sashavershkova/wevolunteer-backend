@@ -16,6 +16,8 @@ import com.wevolunteer.backend.dto.UpdateOrganizationRequest;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import com.wevolunteer.backend.dto.CreateOpportunityRequest;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 
 import java.util.List;
 
@@ -30,6 +32,13 @@ public class OrganizationController {
             OpportunityService opportunityService) {
         this.organizationService = organizationService;
         this.opportunityService = opportunityService;
+    }
+
+    @GetMapping("/organizations/me")
+    public Organization getCurrentOrganization(
+            @AuthenticationPrincipal Jwt jwt) {
+
+        return organizationService.getById(jwt.getSubject());
     }
 
     @GetMapping("/organizations/{organizationId}")
@@ -54,9 +63,10 @@ public class OrganizationController {
 
     @PostMapping("/organizations")
     public Organization createOrganization(
+            @AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody CreateOrganizationRequest request) {
 
-        return organizationService.createOrganization(request);
+        return organizationService.createOrganization(jwt.getSubject(), request);
     }
 
     @PatchMapping("/organizations/{organizationId}")

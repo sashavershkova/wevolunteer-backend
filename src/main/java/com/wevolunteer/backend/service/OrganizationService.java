@@ -12,8 +12,6 @@ import com.wevolunteer.backend.dto.CreateOrganizationRequest;
 import com.wevolunteer.backend.dto.UpdateOrganizationRequest;
 import com.wevolunteer.backend.exception.NotFoundException;
 
-import java.util.List;
-
 @Service
 public class OrganizationService {
 
@@ -36,9 +34,12 @@ public class OrganizationService {
                 .orElseThrow(() -> new NotFoundException("Organization not found: " + organizationId));
     }
 
-    public Organization createOrganization(CreateOrganizationRequest request) {
+    public Organization createOrganization(
+            String organizationId,
+            CreateOrganizationRequest request) {
+
         Organization organization = new Organization(
-                request.organizationId(),
+                organizationId,
                 request.name(),
                 request.description(),
                 request.email(),
