@@ -79,12 +79,12 @@ class OrganizationServiceTest {
         @DisplayName("maps every request field onto the saved organization")
         void mapsRequestAndSaves() {
             CreateOrganizationRequest request = new CreateOrganizationRequest(
-                    ORG_ID, "Green Earth", "We clean beaches", "info@greenearth.org",
+                    "Green Earth", "We clean beaches", "info@greenearth.org",
                     "https://greenearth.org");
             when(organizationRepository.save(any(Organization.class)))
                     .thenAnswer(call -> call.getArgument(0));
 
-            Organization result = organizationService.createOrganization(request);
+            Organization result = organizationService.createOrganization(ORG_ID, request);
 
             ArgumentCaptor<Organization> captor = ArgumentCaptor.forClass(Organization.class);
             verify(organizationRepository).save(captor.capture());
@@ -99,11 +99,11 @@ class OrganizationServiceTest {
         @DisplayName("passes optional description and website through as null")
         void allowsNullOptionalFields() {
             CreateOrganizationRequest request = new CreateOrganizationRequest(
-                    ORG_ID, "Green Earth", null, "info@greenearth.org", null);
+                    "Green Earth", null, "info@greenearth.org", null);
             when(organizationRepository.save(any(Organization.class)))
                     .thenAnswer(call -> call.getArgument(0));
 
-            Organization result = organizationService.createOrganization(request);
+            Organization result = organizationService.createOrganization(ORG_ID, request);
 
             assertThat(result.description()).isNull();
             assertThat(result.website()).isNull();
@@ -113,11 +113,11 @@ class OrganizationServiceTest {
         @DisplayName("does not check for an existing organization first")
         void doesNotCheckExistence() {
             CreateOrganizationRequest request = new CreateOrganizationRequest(
-                    ORG_ID, "Green Earth", null, "info@greenearth.org", null);
+                    "Green Earth", null, "info@greenearth.org", null);
             when(organizationRepository.save(any(Organization.class)))
                     .thenAnswer(call -> call.getArgument(0));
 
-            organizationService.createOrganization(request);
+            organizationService.createOrganization(ORG_ID, request);
 
             verify(organizationRepository, never()).findById(any());
         }
