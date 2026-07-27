@@ -46,4 +46,12 @@ public class RegistrationController {
 
         return registrationService.getRegistrationsByUserId(jwt.getSubject());
     }
+
+    @DeleteMapping("/registrations/me/{opportunityId}")
+    public void cancelMyRegistration(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable String opportunityId) {
+
+        registrationService.cancelRegistration(jwt.getSubject(), opportunityId);
+    }
 }

@@ -13,6 +13,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
@@ -53,6 +54,17 @@ class RegistrationControllerTest {
         List<Registration> result = registrationController.getMyRegistrations(jwt);
 
         assertThat(result).isEmpty();
+        verifyNoMoreInteractions(registrationService);
+    }
+
+    @Test
+    @DisplayName("cancelMyRegistration resolves the user from the JWT subject and delegates to the service")
+    void cancellationUsesJwtSubject() {
+        when(jwt.getSubject()).thenReturn(USER_ID);
+
+        registrationController.cancelMyRegistration(jwt, OPPORTUNITY_ID);
+
+        verify(registrationService).cancelRegistration(USER_ID, OPPORTUNITY_ID);
         verifyNoMoreInteractions(registrationService);
     }
 
