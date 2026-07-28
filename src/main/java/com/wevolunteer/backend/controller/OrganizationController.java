@@ -88,11 +88,12 @@ public class OrganizationController {
         organizationService.deleteOrganization(organizationId);
     }
 
-    @PostMapping("/organizations/{organizationId}/opportunities")
+    @PostMapping("/organizations/me/opportunities")
     public Opportunity createOpportunity(
-            @PathVariable String organizationId,
+            @AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody CreateOpportunityRequest request) {
 
+        String organizationId = jwt.getSubject();
         Organization organization = organizationService.getById(organizationId);
 
         return opportunityService.createOpportunity(
