@@ -2,6 +2,7 @@ package com.wevolunteer.backend.service;
 
 import com.wevolunteer.backend.dto.CreateOpportunityRequest;
 import com.wevolunteer.backend.dto.UpdateOpportunityRequest;
+import com.wevolunteer.backend.exception.ForbiddenException;
 import com.wevolunteer.backend.exception.NotFoundException;
 import com.wevolunteer.backend.model.Opportunity;
 import com.wevolunteer.backend.repository.OpportunityRepository;
@@ -29,6 +30,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -157,13 +159,86 @@ class OpportunityServiceTest {
             verify(opportunityRepository, never()).findById(anyString());
         }
 
+    }
+
+    @Nested
+    @DisplayName("closeOpportunity")
+    class CloseOpportunity {
+
         @Test
-        @DisplayName("closeOpportunity delegates to the repository and returns its result")
-        void delegatesClose() {
+        @DisplayName("owning organization can close its opportunity")
+        void ownerCanClose() {
+            when(opportunityRepository.findById(OPPORTUNITY_ID))
+                    .thenReturn(Optional.of(opportunity(OPPORTUNITY_ID, "OPEN", 10, 3)));
             Opportunity closed = opportunity(OPPORTUNITY_ID, "CLOSED", 10, 3);
             when(opportunityRepository.close(OPPORTUNITY_ID)).thenReturn(closed);
 
-            assertThat(opportunityService.closeOpportunity(OPPORTUNITY_ID)).isSameAs(closed);
+            assertThat(opportunityService.closeOpportunity(OPPORTUNITY_ID, ORG_ID))
+                    .isSameAs(closed);
+        }
+
+        @Test
+        @DisplayName("successful close delegates to the repository exactly once")
+        void delegatesCloseExactlyOnce() {
+            when(opportunityRepository.findById(OPPORTUNITY_ID))
+                    .thenReturn(Optional.of(opportunity(OPPORTUNITY_ID, "OPEN", 10, 3)));
+            when(opportunityRepository.close(OPPORTUNITY_ID))
+                    .thenReturn(opportunity(OPPORTUNITY_ID, "CLOSED", 10, 3));
+
+            opportunityService.closeOpportunity(OPPORTUNITY_ID, ORG_ID);
+
+            verify(opportunityRepository, times(1)).close(OPPORTUNITY_ID);
+        }
+
+        @Test
+        @DisplayName("a caller from a different organization cannot close it")
+        void rejectsNonOwner() {
+            when(opportunityRepository.findById(OPPORTUNITY_ID))
+                    .thenReturn(Optional.of(opportunity(OPPORTUNITY_ID, "OPEN", 10, 3)));
+
+            assertThatThrownBy(() ->
+                    opportunityService.closeOpportunity(OPPORTUNITY_ID, "org-99"))
+                    .isInstanceOf(ForbiddenException.class)
+                    .hasMessage("Only the organization that owns this opportunity can close it.");
+        }
+
+        @Test
+        @DisplayName("does not call repository close when ownership validation fails")
+        void skipsCloseWhenNotOwner() {
+            when(opportunityRepository.findById(OPPORTUNITY_ID))
+                    .thenReturn(Optional.of(opportunity(OPPORTUNITY_ID, "OPEN", 10, 3)));
+
+            assertThatThrownBy(() ->
+                    opportunityService.closeOpportunity(OPPORTUNITY_ID, "org-99"))
+                    .isInstanceOf(ForbiddenException.class);
+
+            verify(opportunityRepository, never()).close(anyString());
+        }
+
+        @Test
+        @DisplayName("throws NotFoundException and never checks ownership when the opportunity is absent")
+        void throwsWhenMissing() {
+            when(opportunityRepository.findById(OPPORTUNITY_ID)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() ->
+                    opportunityService.closeOpportunity(OPPORTUNITY_ID, ORG_ID))
+                    .isInstanceOf(NotFoundException.class)
+                    .hasMessage("Opportunity not found: " + OPPORTUNITY_ID);
+
+            verify(opportunityRepository, never()).close(anyString());
+        }
+
+        @Test
+        @DisplayName("remains idempotent when the owner closes an already-closed opportunity")
+        void idempotentForOwner() {
+            when(opportunityRepository.findById(OPPORTUNITY_ID))
+                    .thenReturn(Optional.of(opportunity(OPPORTUNITY_ID, "CLOSED", 10, 3)));
+            Opportunity closed = opportunity(OPPORTUNITY_ID, "CLOSED", 10, 3);
+            when(opportunityRepository.close(OPPORTUNITY_ID)).thenReturn(closed);
+
+            assertThat(opportunityService.closeOpportunity(OPPORTUNITY_ID, ORG_ID))
+                    .isSameAs(closed);
+            verify(opportunityRepository, times(1)).close(OPPORTUNITY_ID);
         }
     }
 
@@ -386,11 +461,28 @@ class OpportunityServiceTest {
             assertThat(result.availableSpots()).isEqualTo(expectedAvailable);
         }
 
-        @Test
-        @DisplayName("applies the status supplied in the request")
-        void appliesRequestedStatus() {
+        @ParameterizedTest(name = "storedStatus={0}, requestedStatus={1} -> status remains {0}")
+        @CsvSource({"OPEN, CLOSED", "CLOSED, OPEN", "OPEN, OPEN", "CLOSED, CLOSED"})
+        @DisplayName("always preserves the stored status, ignoring the status field in the request")
+        void preservesStoredStatusRegardlessOfRequest(String storedStatus, String requestedStatus) {
             when(opportunityRepository.findById(OPPORTUNITY_ID))
-                    .thenReturn(Optional.of(opportunity(OPPORTUNITY_ID, "OPEN", 10, 0)));
+                    .thenReturn(Optional.of(opportunity(OPPORTUNITY_ID, storedStatus, 10, 4)));
+            when(opportunityRepository.update(any(Opportunity.class)))
+                    .thenAnswer(call -> call.getArgument(0));
+
+            Opportunity result = opportunityService.updateOpportunity(
+                    OPPORTUNITY_ID,
+                    new UpdateOpportunityRequest("Beach Cleanup", "Pick up litter", "ENVIRONMENT",
+                            "Seattle, WA", "2026-08-01", requestedStatus, 10));
+
+            assertThat(result.status()).isEqualTo(storedStatus);
+        }
+
+        @Test
+        @DisplayName("cannot be used to close an opportunity in place of the dedicated close endpoint")
+        void cannotCloseThroughGeneralUpdate() {
+            when(opportunityRepository.findById(OPPORTUNITY_ID))
+                    .thenReturn(Optional.of(opportunity(OPPORTUNITY_ID, "OPEN", 10, 4)));
             when(opportunityRepository.update(any(Opportunity.class)))
                     .thenAnswer(call -> call.getArgument(0));
 
@@ -399,7 +491,11 @@ class OpportunityServiceTest {
                     new UpdateOpportunityRequest("Beach Cleanup", "Pick up litter", "ENVIRONMENT",
                             "Seattle, WA", "2026-08-01", "CLOSED", 10));
 
-            assertThat(result.status()).isEqualTo("CLOSED");
+            assertThat(result.status()).isEqualTo("OPEN");
+
+            ArgumentCaptor<Opportunity> captor = ArgumentCaptor.forClass(Opportunity.class);
+            verify(opportunityRepository).update(captor.capture());
+            assertThat(captor.getValue().status()).isEqualTo("OPEN");
         }
 
         @Test

@@ -5,6 +5,7 @@ import com.wevolunteer.backend.repository.OpportunityRepository;
 import org.springframework.stereotype.Service;
 import com.wevolunteer.backend.dto.CreateOpportunityRequest;
 import com.wevolunteer.backend.dto.UpdateOpportunityRequest;
+import com.wevolunteer.backend.exception.ForbiddenException;
 import com.wevolunteer.backend.exception.NotFoundException;
 
 import java.time.LocalDate;
@@ -118,7 +119,7 @@ public class OpportunityService {
                 request.category(),
                 request.location(),
                 request.date(),
-                request.status(),
+                existingOpportunity.status(),
                 existingOpportunity.organizationId(),
                 existingOpportunity.organizationName(),
                 request.capacity(),
@@ -129,7 +130,14 @@ public class OpportunityService {
         return opportunityRepository.update(updatedOpportunity);
     }
 
-    public Opportunity closeOpportunity(String opportunityId) {
+    public Opportunity closeOpportunity(String opportunityId, String organizationId) {
+        Opportunity existingOpportunity = getById(opportunityId);
+
+        if (!existingOpportunity.organizationId().equals(organizationId)) {
+            throw new ForbiddenException(
+                    "Only the organization that owns this opportunity can close it.");
+        }
+
         return opportunityRepository.close(opportunityId);
     }
 

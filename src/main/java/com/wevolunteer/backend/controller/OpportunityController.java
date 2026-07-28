@@ -12,6 +12,8 @@ import com.wevolunteer.backend.dto.UpdateOpportunityRequest;
 import org.springframework.web.bind.annotation.PatchMapping;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 
 import java.util.List;
 
@@ -99,7 +101,10 @@ public class OpportunityController {
     }
 
     @PatchMapping("/opportunities/{opportunityId}/close")
-    public Opportunity closeOpportunity(@PathVariable String opportunityId) {
-        return opportunityService.closeOpportunity(opportunityId);
+    public Opportunity closeOpportunity(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable String opportunityId) {
+
+        return opportunityService.closeOpportunity(opportunityId, jwt.getSubject());
     }
 }

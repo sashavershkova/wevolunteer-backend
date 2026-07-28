@@ -28,6 +28,13 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.CONFLICT, ex.getMessage(), request);
     }
 
+    @ExceptionHandler(ForbiddenException.class)
+    public ResponseEntity<ErrorResponse> handleForbidden(
+            ForbiddenException ex, HttpServletRequest request) {
+
+        return buildResponse(HttpStatus.FORBIDDEN, ex.getMessage(), request);
+    }
+
     @ExceptionHandler({ConditionalCheckFailedException.class, TransactionCanceledException.class})
     public ResponseEntity<ErrorResponse> handleDynamoDbConflict(
             Exception ex, HttpServletRequest request) {
