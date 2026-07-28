@@ -46,6 +46,13 @@ public class OrganizationController {
         return organizationService.getById(organizationId);
     }
 
+    @GetMapping("/organizations/me/opportunities")
+    public List<Opportunity> getMyOrganizationOpportunities(
+            @AuthenticationPrincipal Jwt jwt) {
+
+        return opportunityService.getAllOpportunitiesByOrganizationId(jwt.getSubject());
+    }
+
     @GetMapping("/organizations/{organizationId}/opportunities")
     public List<Opportunity> getOrganizationOpportunities(
             @PathVariable String organizationId,
