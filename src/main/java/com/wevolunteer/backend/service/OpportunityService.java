@@ -5,6 +5,7 @@ import com.wevolunteer.backend.repository.OpportunityRepository;
 import org.springframework.stereotype.Service;
 import com.wevolunteer.backend.dto.CreateOpportunityRequest;
 import com.wevolunteer.backend.dto.UpdateOpportunityRequest;
+import com.wevolunteer.backend.exception.ConflictException;
 import com.wevolunteer.backend.exception.ForbiddenException;
 import com.wevolunteer.backend.exception.NotFoundException;
 
@@ -80,7 +81,32 @@ public class OpportunityService {
         );
     }
 
+    /** Unconditional delete used only for organization-account cascade cleanup. */
     public void deleteOpportunity(String opportunityId) {
+        opportunityRepository.deleteById(opportunityId);
+    }
+
+    public void deleteOpportunity(String opportunityId, String organizationId) {
+        Opportunity existingOpportunity = getById(opportunityId);
+
+        if (!existingOpportunity.organizationId().equals(organizationId)) {
+            throw new ForbiddenException(
+                    "Only the organization that owns this opportunity can delete it.");
+        }
+
+        if (!"CLOSED".equals(existingOpportunity.status())) {
+            throw new ConflictException("Only closed opportunities can be deleted.");
+        }
+
+        if (existingOpportunity.registeredCount() > 0) {
+            throw new ConflictException(
+                    "Opportunities with existing registrations cannot be deleted.");
+        }
+
+        if (LocalDate.parse(existingOpportunity.date()).isBefore(LocalDate.now())) {
+            throw new ConflictException("Past opportunities cannot be deleted.");
+        }
+
         opportunityRepository.deleteById(opportunityId);
     }
 

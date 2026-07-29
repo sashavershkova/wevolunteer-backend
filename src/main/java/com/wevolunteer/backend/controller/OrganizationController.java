@@ -119,4 +119,12 @@ public class OrganizationController {
                 request
         );
     }
+
+    @DeleteMapping("/organizations/me/opportunities/{opportunityId}")
+    public void deleteOpportunity(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable String opportunityId) {
+
+        opportunityService.deleteOpportunity(opportunityId, jwt.getSubject());
+    }
 }

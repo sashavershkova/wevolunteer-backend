@@ -2,6 +2,7 @@ package com.wevolunteer.backend.service;
 
 import com.wevolunteer.backend.dto.CreateOpportunityRequest;
 import com.wevolunteer.backend.dto.UpdateOpportunityRequest;
+import com.wevolunteer.backend.exception.ConflictException;
 import com.wevolunteer.backend.exception.ForbiddenException;
 import com.wevolunteer.backend.exception.NotFoundException;
 import com.wevolunteer.backend.model.Opportunity;
@@ -155,14 +156,14 @@ class OpportunityServiceTest {
         }
 
         @Test
-        @DisplayName("deleteOpportunity delegates without checking existence first")
-        void delegatesDelete() {
+        @DisplayName("single-argument deleteOpportunity delegates without checking existence "
+                + "first (used only for organization-account cascade cleanup)")
+        void delegatesUnconditionalDelete() {
             opportunityService.deleteOpportunity(OPPORTUNITY_ID);
 
             verify(opportunityRepository).deleteById(OPPORTUNITY_ID);
             verify(opportunityRepository, never()).findById(anyString());
         }
-
     }
 
     @Nested
@@ -243,6 +244,104 @@ class OpportunityServiceTest {
             assertThat(opportunityService.closeOpportunity(OPPORTUNITY_ID, ORG_ID))
                     .isSameAs(closed);
             verify(opportunityRepository, times(1)).close(OPPORTUNITY_ID);
+        }
+    }
+
+    @Nested
+    @DisplayName("deleteOpportunity")
+    class DeleteOpportunity {
+
+        @Test
+        @DisplayName("owning organization can delete a closed, unregistered, future opportunity")
+        void ownerCanDelete() {
+            when(opportunityRepository.findById(OPPORTUNITY_ID))
+                    .thenReturn(Optional.of(opportunity(OPPORTUNITY_ID, "CLOSED", 10, 0, "2026-08-01")));
+
+            opportunityService.deleteOpportunity(OPPORTUNITY_ID, ORG_ID);
+
+            verify(opportunityRepository, times(1)).deleteById(OPPORTUNITY_ID);
+        }
+
+        @Test
+        @DisplayName("a caller from a different organization cannot delete it")
+        void rejectsNonOwner() {
+            when(opportunityRepository.findById(OPPORTUNITY_ID))
+                    .thenReturn(Optional.of(opportunity(OPPORTUNITY_ID, "CLOSED", 10, 0, "2026-08-01")));
+
+            assertThatThrownBy(() ->
+                    opportunityService.deleteOpportunity(OPPORTUNITY_ID, "org-99"))
+                    .isInstanceOf(ForbiddenException.class)
+                    .hasMessage("Only the organization that owns this opportunity can delete it.");
+
+            verify(opportunityRepository, never()).deleteById(anyString());
+        }
+
+        @Test
+        @DisplayName("throws NotFoundException and never checks ownership when the opportunity is absent")
+        void throwsWhenMissing() {
+            when(opportunityRepository.findById(OPPORTUNITY_ID)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() ->
+                    opportunityService.deleteOpportunity(OPPORTUNITY_ID, ORG_ID))
+                    .isInstanceOf(NotFoundException.class)
+                    .hasMessage("Opportunity not found: " + OPPORTUNITY_ID);
+
+            verify(opportunityRepository, never()).deleteById(anyString());
+        }
+
+        @Test
+        @DisplayName("rejects deletion of an OPEN opportunity")
+        void rejectsWhenNotClosed() {
+            when(opportunityRepository.findById(OPPORTUNITY_ID))
+                    .thenReturn(Optional.of(opportunity(OPPORTUNITY_ID, "OPEN", 10, 0, "2026-08-01")));
+
+            assertThatThrownBy(() ->
+                    opportunityService.deleteOpportunity(OPPORTUNITY_ID, ORG_ID))
+                    .isInstanceOf(ConflictException.class)
+                    .hasMessage("Only closed opportunities can be deleted.");
+
+            verify(opportunityRepository, never()).deleteById(anyString());
+        }
+
+        @Test
+        @DisplayName("rejects deletion when the opportunity still has registrations")
+        void rejectsWhenHasRegistrations() {
+            when(opportunityRepository.findById(OPPORTUNITY_ID))
+                    .thenReturn(Optional.of(opportunity(OPPORTUNITY_ID, "CLOSED", 10, 3, "2026-08-01")));
+
+            assertThatThrownBy(() ->
+                    opportunityService.deleteOpportunity(OPPORTUNITY_ID, ORG_ID))
+                    .isInstanceOf(ConflictException.class)
+                    .hasMessage("Opportunities with existing registrations cannot be deleted.");
+
+            verify(opportunityRepository, never()).deleteById(anyString());
+        }
+
+        @Test
+        @DisplayName("rejects deletion of a past opportunity")
+        void rejectsWhenDateInPast() {
+            when(opportunityRepository.findById(OPPORTUNITY_ID))
+                    .thenReturn(Optional.of(opportunity(OPPORTUNITY_ID, "CLOSED", 10, 0, "2020-01-01")));
+
+            assertThatThrownBy(() ->
+                    opportunityService.deleteOpportunity(OPPORTUNITY_ID, ORG_ID))
+                    .isInstanceOf(ConflictException.class)
+                    .hasMessage("Past opportunities cannot be deleted.");
+
+            verify(opportunityRepository, never()).deleteById(anyString());
+        }
+
+        @Test
+        @DisplayName("allows deletion when the opportunity date is exactly today")
+        void allowsWhenDateIsToday() {
+            String today = java.time.LocalDate.now().toString();
+            when(opportunityRepository.findById(OPPORTUNITY_ID))
+                    .thenReturn(Optional.of(opportunity(OPPORTUNITY_ID, "CLOSED", 10, 0, today)));
+
+            assertThatCode(() -> opportunityService.deleteOpportunity(OPPORTUNITY_ID, ORG_ID))
+                    .doesNotThrowAnyException();
+
+            verify(opportunityRepository, times(1)).deleteById(OPPORTUNITY_ID);
         }
     }
 
@@ -824,13 +923,19 @@ class OpportunityServiceTest {
     private static Opportunity opportunity(
             String opportunityId, String status, int capacity, int registeredCount) {
 
+        return opportunity(opportunityId, status, capacity, registeredCount, "2026-08-01");
+    }
+
+    private static Opportunity opportunity(
+            String opportunityId, String status, int capacity, int registeredCount, String date) {
+
         return new Opportunity(
                 opportunityId,
                 "Beach Cleanup",
                 "Pick up litter",
                 "ENVIRONMENT",
                 "Seattle, WA",
-                "2026-08-01",
+                date,
                 status,
                 ORG_ID,
                 ORG_NAME,

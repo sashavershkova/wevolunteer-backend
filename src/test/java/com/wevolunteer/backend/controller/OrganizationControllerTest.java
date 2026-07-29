@@ -99,6 +99,27 @@ class OrganizationControllerTest {
     }
 
     @Test
+    @DisplayName("deleteOpportunity resolves the organization from the JWT subject and delegates to the service")
+    void deleteOpportunityResolvesOrganizationFromJwtSubject() {
+        when(jwt.getSubject()).thenReturn(ORGANIZATION_ID);
+
+        organizationController.deleteOpportunity(jwt, "opp-1");
+
+        verify(opportunityService).deleteOpportunity("opp-1", ORGANIZATION_ID);
+    }
+
+    @Test
+    @DisplayName("deleteOpportunity is mapped to DELETE /organizations/me/opportunities/{opportunityId}")
+    void deleteOpportunityIsMappedToMeRoute() throws NoSuchMethodException {
+        Method method = OrganizationController.class.getMethod(
+                "deleteOpportunity", Jwt.class, String.class);
+        org.springframework.web.bind.annotation.DeleteMapping mapping =
+                method.getAnnotation(org.springframework.web.bind.annotation.DeleteMapping.class);
+
+        assertThat(mapping.value()).containsExactly("/organizations/me/opportunities/{opportunityId}");
+    }
+
+    @Test
     @DisplayName("updateCurrentOrganization uses the JWT subject as the organization ID and delegates to the service")
     void updateCurrentOrganizationUsesJwtSubjectAsOrganizationId() {
         when(jwt.getSubject()).thenReturn(ORGANIZATION_ID);
