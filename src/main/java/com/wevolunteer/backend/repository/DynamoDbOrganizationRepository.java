@@ -8,6 +8,7 @@ import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException;
 import software.amazon.awssdk.services.dynamodb.model.GetItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
+import software.amazon.awssdk.services.dynamodb.model.ReturnValue;
 import software.amazon.awssdk.services.dynamodb.model.UpdateItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.DeleteItemRequest;
 
@@ -52,12 +53,15 @@ public class DynamoDbOrganizationRepository implements OrganizationRepository {
                 item.get("name").s(),
                 getStringOrNull(item, "description"),
                 item.get("email").s(),
-                getStringOrNull(item, "website")
+                getStringOrNull(item, "website"),
+                getStringOrNull(item, "profileImageKey")
         );
     }
 
     private String getStringOrNull(Map<String, AttributeValue> item, String key) {
-        return item.containsKey(key) ? item.get(key).s() : null;
+        AttributeValue value = item.get(key);
+
+        return value == null ? null : value.s();
     }
 
     @Override
@@ -77,6 +81,10 @@ public class DynamoDbOrganizationRepository implements OrganizationRepository {
 
         if (organization.website() != null) {
             item.put("website", AttributeValue.fromS(organization.website()));
+        }
+
+        if (organization.profileImageKey() != null) {
+            item.put("profileImageKey", AttributeValue.fromS(organization.profileImageKey()));
         }
 
         PutItemRequest request = PutItemRequest.builder()
@@ -114,11 +122,29 @@ public class DynamoDbOrganizationRepository implements OrganizationRepository {
                         ":email", AttributeValue.fromS(organization.email()),
                         ":website", AttributeValue.fromS(organization.website())
                 ))
+                .returnValues(ReturnValue.ALL_NEW)
                 .build();
 
-        dynamoDbClient.updateItem(request);
+        return mapToOrganization(dynamoDbClient.updateItem(request).attributes());
+    }
 
-        return organization;
+    @Override
+    public Organization updateProfileImageKey(String organizationId, String profileImageKey) {
+        UpdateItemRequest request = UpdateItemRequest.builder()
+                .tableName(TABLE_NAME)
+                .key(Map.of(
+                        "PK", AttributeValue.fromS("ORG#" + organizationId),
+                        "SK", AttributeValue.fromS("PROFILE")
+                ))
+                .updateExpression("SET profileImageKey = :profileImageKey")
+                .conditionExpression("attribute_exists(PK) AND attribute_exists(SK)")
+                .expressionAttributeValues(Map.of(
+                        ":profileImageKey", AttributeValue.fromS(profileImageKey)
+                ))
+                .returnValues(ReturnValue.ALL_NEW)
+                .build();
+
+        return mapToOrganization(dynamoDbClient.updateItem(request).attributes());
     }
 
     @Override

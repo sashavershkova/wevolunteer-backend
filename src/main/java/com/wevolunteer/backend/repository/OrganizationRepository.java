@@ -12,5 +12,12 @@ public interface OrganizationRepository {
 
     Organization update(Organization organization);
 
+    /**
+     * Updates only the profile image key, leaving every other profile attribute untouched.
+     *
+     * @return the profile as stored after the update
+     */
+    Organization updateProfileImageKey(String organizationId, String profileImageKey);
+
     void deleteById(String organizationId);
 }

@@ -130,7 +130,11 @@ public class OpportunityService {
                 request.capacity() - existingOpportunity.registeredCount(),
                 request.time(),
                 request.whatYoullDo(),
-                request.recurring()
+                request.recurring(),
+                // update() rewrites the whole item, and UpdateOpportunityRequest carries no image
+                // field, so the existing key must be carried forward explicitly or every edit
+                // would erase the opportunity's image.
+                existingOpportunity.imageKey()
         );
 
         return opportunityRepository.update(updatedOpportunity);

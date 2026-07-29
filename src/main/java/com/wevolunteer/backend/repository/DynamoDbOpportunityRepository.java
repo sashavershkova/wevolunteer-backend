@@ -302,6 +302,13 @@ public class DynamoDbOpportunityRepository implements OpportunityRepository {
 
         item.put("recurring", AttributeValue.fromBool(opportunity.recurring()));
 
+        // Written only when present. Unlike "time" above, an absent image must not become an
+        // empty string: "" is a valid S3 key prefix and would produce meaningless pre-sign
+        // attempts for opportunities that have no image.
+        if (opportunity.imageKey() != null) {
+            item.put("imageKey", AttributeValue.fromS(opportunity.imageKey()));
+        }
+
         if ("OPEN".equals(opportunity.status())) {
                 item.put("GSI1PK", AttributeValue.fromS("OPPORTUNITIES#OPEN"));
                 item.put("GSI1SK", AttributeValue.fromS(dateSortKey));
@@ -338,7 +345,8 @@ public class DynamoDbOpportunityRepository implements OpportunityRepository {
                 capacity - registeredCount,
                 optionalString(item, "time"),
                 optionalStringList(item, "whatYoullDo"),
-                optionalBoolean(item, "recurring")
+                optionalBoolean(item, "recurring"),
+                optionalString(item, "imageKey")
         );
     }
 

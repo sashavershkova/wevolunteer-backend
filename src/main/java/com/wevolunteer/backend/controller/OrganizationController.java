@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import com.wevolunteer.backend.dto.CreateOrganizationRequest;
+import com.wevolunteer.backend.dto.OrganizationProfileResponse;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -35,15 +36,19 @@ public class OrganizationController {
     }
 
     @GetMapping("/organizations/me")
-    public Organization getCurrentOrganization(
+    public OrganizationProfileResponse getCurrentOrganization(
             @AuthenticationPrincipal Jwt jwt) {
 
-        return organizationService.getById(jwt.getSubject());
+        return OrganizationProfileResponse.from(
+                organizationService.getById(jwt.getSubject()));
     }
 
     @GetMapping("/organizations/{organizationId}")
-    public Organization getOrganization(@PathVariable String organizationId) {
-        return organizationService.getById(organizationId);
+    public OrganizationProfileResponse getOrganization(
+            @PathVariable String organizationId) {
+
+        return OrganizationProfileResponse.from(
+                organizationService.getById(organizationId));
     }
 
     @GetMapping("/organizations/me/opportunities")
@@ -69,18 +74,21 @@ public class OrganizationController {
     }
 
     @PostMapping("/organizations")
-    public Organization createOrganization(
+    public OrganizationProfileResponse createOrganization(
             @AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody CreateOrganizationRequest request) {
 
-        return organizationService.createOrganization(jwt.getSubject(), request);
+        return OrganizationProfileResponse.from(
+                organizationService.createOrganization(jwt.getSubject(), request));
     }
 
     @PatchMapping("/organizations/{organizationId}")
-    public Organization updateOrganization(
+    public OrganizationProfileResponse updateOrganization(
             @PathVariable String organizationId,
             @Valid @RequestBody UpdateOrganizationRequest request) {
-        return organizationService.updateOrganization(organizationId, request);
+
+        return OrganizationProfileResponse.from(
+                organizationService.updateOrganization(organizationId, request));
     }   
 
     @DeleteMapping("/organizations/{organizationId}")

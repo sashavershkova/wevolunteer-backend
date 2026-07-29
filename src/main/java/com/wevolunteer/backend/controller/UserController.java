@@ -1,9 +1,9 @@
 package com.wevolunteer.backend.controller;
 
 import com.wevolunteer.backend.dto.CreateUserRequest;
+import com.wevolunteer.backend.dto.UserProfileResponse;
 import com.wevolunteer.backend.dto.UpdateUserRequest;
 import com.wevolunteer.backend.model.Registration;
-import com.wevolunteer.backend.model.User;
 import com.wevolunteer.backend.service.RegistrationService;
 import com.wevolunteer.backend.service.UserService;
 import jakarta.validation.Valid;
@@ -34,8 +34,8 @@ public class UserController {
     }
 
     @GetMapping("/users/{userId}")
-    public User getUser(@PathVariable String userId) {
-        return userService.getById(userId);
+    public UserProfileResponse getUser(@PathVariable String userId) {
+        return UserProfileResponse.from(userService.getById(userId));
     }
 
     @GetMapping("/users/{userId}/registrations")
@@ -44,26 +44,27 @@ public class UserController {
     }
 
     @PostMapping("/users")
-    public User createUser(
+    public UserProfileResponse createUser(
             @AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody CreateUserRequest request
     ) {
-        return userService.createUser(jwt.getSubject(), request);
+        return UserProfileResponse.from(
+                userService.createUser(jwt.getSubject(), request));
     }
 
     @GetMapping("/users/me")
-    public User getCurrentUser(
+    public UserProfileResponse getCurrentUser(
             @AuthenticationPrincipal Jwt jwt
     ) {
-        return userService.getById(jwt.getSubject());
+        return UserProfileResponse.from(userService.getById(jwt.getSubject()));
     }
 
     @PatchMapping("/users/{userId}")
-    public User updateUser(
+    public UserProfileResponse updateUser(
             @PathVariable String userId,
             @Valid @RequestBody UpdateUserRequest request
     ) {
-        return userService.updateUser(userId, request);
+        return UserProfileResponse.from(userService.updateUser(userId, request));
     }
 
     @DeleteMapping("/users/{userId}")

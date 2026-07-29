@@ -8,9 +8,11 @@ import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException;
 import software.amazon.awssdk.services.dynamodb.model.GetItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
+import software.amazon.awssdk.services.dynamodb.model.ReturnValue;
 import software.amazon.awssdk.services.dynamodb.model.UpdateItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.DeleteItemRequest;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
@@ -27,14 +29,9 @@ public class DynamoDbUserRepository implements UserRepository {
 
     @Override
     public Optional<User> findById(String userId) {
-        Map<String, AttributeValue> key = Map.of(
-                "PK", AttributeValue.fromS("USER#" + userId),
-                "SK", AttributeValue.fromS("PROFILE")
-        );
-
         GetItemRequest request = GetItemRequest.builder()
                 .tableName(TABLE_NAME)
-                .key(key)
+                .key(profileKey(userId))
                 .build();
 
         Map<String, AttributeValue> item = dynamoDbClient.getItem(request).item();
@@ -51,21 +48,36 @@ public class DynamoDbUserRepository implements UserRepository {
                 item.get("userId").s(),
                 item.get("name").s(),
                 item.get("email").s(),
-                item.get("role").s()
+                item.get("role").s(),
+                getStringOrNull(item, "profileImageKey")
         );
+    }
+
+    /**
+     * Reads an optional attribute. Profile items created before profile images existed have no
+     * profileImageKey at all, so a direct get(...).s() would throw NullPointerException on them.
+     */
+    private String getStringOrNull(Map<String, AttributeValue> item, String key) {
+        AttributeValue value = item.get(key);
+
+        return value == null ? null : value.s();
     }
 
     @Override
     public User save(User user) {
-        Map<String, AttributeValue> item = Map.of(
-                "PK", AttributeValue.fromS("USER#" + user.userId()),
-                "SK", AttributeValue.fromS("PROFILE"),
-                "entityType", AttributeValue.fromS("USER"),
-                "userId", AttributeValue.fromS(user.userId()),
-                "name", AttributeValue.fromS(user.name()),
-                "email", AttributeValue.fromS(user.email()),
-                "role", AttributeValue.fromS(user.role())
-        );
+        Map<String, AttributeValue> item = new HashMap<>();
+
+        item.put("PK", AttributeValue.fromS("USER#" + user.userId()));
+        item.put("SK", AttributeValue.fromS("PROFILE"));
+        item.put("entityType", AttributeValue.fromS("USER"));
+        item.put("userId", AttributeValue.fromS(user.userId()));
+        item.put("name", AttributeValue.fromS(user.name()));
+        item.put("email", AttributeValue.fromS(user.email()));
+        item.put("role", AttributeValue.fromS(user.role()));
+
+        if (user.profileImageKey() != null) {
+            item.put("profileImageKey", AttributeValue.fromS(user.profileImageKey()));
+        }
 
         PutItemRequest request = PutItemRequest.builder()
                 .tableName(TABLE_NAME)
@@ -86,10 +98,7 @@ public class DynamoDbUserRepository implements UserRepository {
     public User update(User user) {
         UpdateItemRequest request = UpdateItemRequest.builder()
                 .tableName(TABLE_NAME)
-                .key(Map.of(
-                        "PK", AttributeValue.fromS("USER#" + user.userId()),
-                        "SK", AttributeValue.fromS("PROFILE")
-                ))
+                .key(profileKey(user.userId()))
                 .updateExpression("SET #name = :name, email = :email, #role = :role")
                 .conditionExpression("attribute_exists(PK) AND attribute_exists(SK)")
                 .expressionAttributeNames(Map.of(
@@ -101,24 +110,43 @@ public class DynamoDbUserRepository implements UserRepository {
                         ":email", AttributeValue.fromS(user.email()),
                         ":role", AttributeValue.fromS(user.role())
                 ))
+                .returnValues(ReturnValue.ALL_NEW)
                 .build();
 
-        dynamoDbClient.updateItem(request);
-
-        return user;
+        return mapToUser(dynamoDbClient.updateItem(request).attributes());
     }
 
     @Override
-        public void deleteById(String userId) {
+    public User updateProfileImageKey(String userId, String profileImageKey) {
+        UpdateItemRequest request = UpdateItemRequest.builder()
+                .tableName(TABLE_NAME)
+                .key(profileKey(userId))
+                .updateExpression("SET profileImageKey = :profileImageKey")
+                .conditionExpression("attribute_exists(PK) AND attribute_exists(SK)")
+                .expressionAttributeValues(Map.of(
+                        ":profileImageKey", AttributeValue.fromS(profileImageKey)
+                ))
+                .returnValues(ReturnValue.ALL_NEW)
+                .build();
+
+        return mapToUser(dynamoDbClient.updateItem(request).attributes());
+    }
+
+    @Override
+    public void deleteById(String userId) {
         DeleteItemRequest request = DeleteItemRequest.builder()
                 .tableName(TABLE_NAME)
-                .key(Map.of(
-                        "PK", AttributeValue.fromS("USER#" + userId),
-                        "SK", AttributeValue.fromS("PROFILE")
-                ))
+                .key(profileKey(userId))
                 .conditionExpression("attribute_exists(PK) AND attribute_exists(SK)")
                 .build();
 
         dynamoDbClient.deleteItem(request);
-        }
+    }
+
+    private Map<String, AttributeValue> profileKey(String userId) {
+        return Map.of(
+                "PK", AttributeValue.fromS("USER#" + userId),
+                "SK", AttributeValue.fromS("PROFILE")
+        );
+    }
 }

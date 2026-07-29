@@ -515,6 +515,78 @@ class OpportunityServiceTest {
         }
     }
 
+    @Nested
+    @DisplayName("imageKey")
+    class ImageKey {
+
+        @Test
+        @DisplayName("updateOpportunity carries the existing image key forward")
+        void carriesImageKeyForward() {
+            Opportunity existing = withImageKey(opportunity(OPPORTUNITY_ID, "OPEN", 10, 3), IMAGE_KEY);
+            when(opportunityRepository.findById(OPPORTUNITY_ID)).thenReturn(Optional.of(existing));
+            when(opportunityRepository.update(any(Opportunity.class)))
+                    .thenAnswer(call -> call.getArgument(0));
+
+            opportunityService.updateOpportunity(OPPORTUNITY_ID, updateRequest());
+
+            ArgumentCaptor<Opportunity> captor = ArgumentCaptor.forClass(Opportunity.class);
+            verify(opportunityRepository).update(captor.capture());
+
+            assertThat(captor.getValue().imageKey()).isEqualTo(IMAGE_KEY);
+        }
+
+        @Test
+        @DisplayName("updateOpportunity leaves the image key null when there was none")
+        void leavesImageKeyNull() {
+            when(opportunityRepository.findById(OPPORTUNITY_ID))
+                    .thenReturn(Optional.of(opportunity(OPPORTUNITY_ID, "OPEN", 10, 3)));
+            when(opportunityRepository.update(any(Opportunity.class)))
+                    .thenAnswer(call -> call.getArgument(0));
+
+            opportunityService.updateOpportunity(OPPORTUNITY_ID, updateRequest());
+
+            ArgumentCaptor<Opportunity> captor = ArgumentCaptor.forClass(Opportunity.class);
+            verify(opportunityRepository).update(captor.capture());
+
+            assertThat(captor.getValue().imageKey()).isNull();
+        }
+
+        @Test
+        @DisplayName("updateOpportunity still applies the requested field changes")
+        void stillAppliesRequestedChanges() {
+            Opportunity existing = withImageKey(opportunity(OPPORTUNITY_ID, "OPEN", 10, 3), IMAGE_KEY);
+            when(opportunityRepository.findById(OPPORTUNITY_ID)).thenReturn(Optional.of(existing));
+            when(opportunityRepository.update(any(Opportunity.class)))
+                    .thenAnswer(call -> call.getArgument(0));
+
+            opportunityService.updateOpportunity(OPPORTUNITY_ID, updateRequest());
+
+            ArgumentCaptor<Opportunity> captor = ArgumentCaptor.forClass(Opportunity.class);
+            verify(opportunityRepository).update(captor.capture());
+
+            assertThat(captor.getValue().title()).isEqualTo("Updated Title");
+            assertThat(captor.getValue().imageKey()).isEqualTo(IMAGE_KEY);
+        }
+
+        private UpdateOpportunityRequest updateRequest() {
+            return new UpdateOpportunityRequest(
+                    "Updated Title", "Updated description", "ENVIRONMENT", "Seattle, WA",
+                    "2026-09-01", "OPEN", 12, "10:00 AM", List.of("Do things"), false);
+        }
+    }
+
+    private static final String IMAGE_KEY =
+            "organizations/org-1/opportunities/550e8400-e29b-41d4-a716-446655440000.jpg";
+
+    private static Opportunity withImageKey(Opportunity opportunity, String imageKey) {
+        return new Opportunity(
+                opportunity.opportunityId(), opportunity.title(), opportunity.description(),
+                opportunity.category(), opportunity.location(), opportunity.date(),
+                opportunity.status(), opportunity.organizationId(), opportunity.organizationName(),
+                opportunity.capacity(), opportunity.registeredCount(), opportunity.availableSpots(),
+                opportunity.time(), opportunity.whatYoullDo(), opportunity.recurring(), imageKey);
+    }
+
     private static Opportunity opportunity(
             String opportunityId, String status, int capacity, int registeredCount) {
 
