@@ -300,7 +300,7 @@ class OrganizationServiceTest {
                 10,
                 0,
                 10,
-                "9:00 AM - 1:00 PM");
+                "9:00 AM - 1:00 PM", List.of("Sort and organize donations", "Help set up the distribution area"));
     }
 
     private static Registration registration(String userId, String opportunityId) {

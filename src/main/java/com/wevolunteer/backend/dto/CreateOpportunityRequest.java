@@ -3,6 +3,8 @@ package com.wevolunteer.backend.dto;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 
+import java.util.List;
+
 public record CreateOpportunityRequest(
         @NotBlank String opportunityId,
         @NotBlank String title,
@@ -11,5 +13,6 @@ public record CreateOpportunityRequest(
         @NotBlank String location,
         @NotBlank String date,
         @Min(1) int capacity,
-        String time
+        String time,
+        List<String> whatYoullDo
 ) {}

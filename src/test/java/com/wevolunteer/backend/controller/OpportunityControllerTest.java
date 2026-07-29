@@ -11,6 +11,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.oauth2.jwt.Jwt;
 
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -75,6 +77,6 @@ class OpportunityControllerTest {
                 10,
                 3,
                 7,
-                "9:00 AM - 1:00 PM");
+                "9:00 AM - 1:00 PM", List.of("Sort and organize donations", "Help set up the distribution area"));
     }
 }

@@ -101,7 +101,8 @@ public class OpportunityService {
                 request.capacity(),
                 0,
                 request.capacity(),
-                request.time()
+                request.time(),
+                request.whatYoullDo()
         );
 
         return opportunityRepository.save(opportunity);
@@ -126,7 +127,8 @@ public class OpportunityService {
                 request.capacity(),
                 existingOpportunity.registeredCount(),
                 request.capacity() - existingOpportunity.registeredCount(),
-                request.time()
+                request.time(),
+                request.whatYoullDo()
         );
 
         return opportunityRepository.update(updatedOpportunity);

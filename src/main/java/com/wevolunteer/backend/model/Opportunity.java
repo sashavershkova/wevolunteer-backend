@@ -1,5 +1,7 @@
 package com.wevolunteer.backend.model;
 
+import java.util.List;
+
 public record Opportunity(
         String opportunityId,
         String title,
@@ -13,5 +15,6 @@ public record Opportunity(
         int capacity,
         int registeredCount,
         int availableSpots,
-        String time
+        String time,
+        List<String> whatYoullDo
 ) {}

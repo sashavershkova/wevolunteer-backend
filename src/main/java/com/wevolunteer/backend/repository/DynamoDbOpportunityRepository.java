@@ -294,6 +294,12 @@ public class DynamoDbOpportunityRepository implements OpportunityRepository {
         item.put("registeredCount", AttributeValue.fromN(String.valueOf(opportunity.registeredCount())));
         item.put("time", AttributeValue.fromS(opportunity.time() != null ? opportunity.time() : ""));
 
+        List<String> whatYoullDo = opportunity.whatYoullDo() != null
+                ? opportunity.whatYoullDo()
+                : List.of();
+        item.put("whatYoullDo", AttributeValue.fromL(
+                whatYoullDo.stream().map(AttributeValue::fromS).toList()));
+
         if ("OPEN".equals(opportunity.status())) {
                 item.put("GSI1PK", AttributeValue.fromS("OPPORTUNITIES#OPEN"));
                 item.put("GSI1SK", AttributeValue.fromS(dateSortKey));
@@ -328,7 +334,8 @@ public class DynamoDbOpportunityRepository implements OpportunityRepository {
                 capacity,
                 registeredCount,
                 capacity - registeredCount,
-                optionalString(item, "time")
+                optionalString(item, "time"),
+                optionalStringList(item, "whatYoullDo")
         );
     }
 
@@ -338,6 +345,20 @@ public class DynamoDbOpportunityRepository implements OpportunityRepository {
     private static String optionalString(Map<String, AttributeValue> item, String key) {
         AttributeValue value = item.get(key);
         return value != null ? value.s() : null;
+    }
+
+    /**
+     * Reads a list-of-strings attribute that may be absent on items written before the
+     * attribute existed.
+     */
+    private static List<String> optionalStringList(Map<String, AttributeValue> item, String key) {
+        AttributeValue value = item.get(key);
+
+        if (value == null || value.l() == null) {
+            return List.of();
+        }
+
+        return value.l().stream().map(AttributeValue::s).toList();
     }
 
     @Override
@@ -443,7 +464,8 @@ public class DynamoDbOpportunityRepository implements OpportunityRepository {
                 existingOpportunity.capacity(),
                 existingOpportunity.registeredCount(),
                 existingOpportunity.availableSpots(),
-                existingOpportunity.time()
+                existingOpportunity.time(),
+                existingOpportunity.whatYoullDo()
         );
     }
 }
