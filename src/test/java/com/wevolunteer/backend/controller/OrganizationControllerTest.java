@@ -61,7 +61,7 @@ class OrganizationControllerTest {
 
         CreateOpportunityRequest request = new CreateOpportunityRequest(
                 "opp-1", "Beach Cleanup", "Help clean the beach",
-                "Environment", "Seattle, WA", "2026-08-01", 10, "9:00 AM - 1:00 PM", List.of("Sort and organize donations", "Help set up the distribution area"));
+                "Environment", "Seattle, WA", "2026-08-01", 10, "9:00 AM - 1:00 PM", List.of("Sort and organize donations", "Help set up the distribution area"), false);
 
         Opportunity expected = opportunity();
         when(opportunityService.createOpportunity(ORGANIZATION_ID, "Green Earth", request))
@@ -107,6 +107,6 @@ class OrganizationControllerTest {
                 10,
                 0,
                 10,
-                "9:00 AM - 1:00 PM", List.of("Sort and organize donations", "Help set up the distribution area"));
+                "9:00 AM - 1:00 PM", List.of("Sort and organize donations", "Help set up the distribution area"), false);
     }
 }

@@ -14,5 +14,6 @@ public record UpdateOpportunityRequest(
         @NotBlank String status,
         @Min(1) int capacity,
         String time,
-        List<String> whatYoullDo
+        List<String> whatYoullDo,
+        boolean recurring
 ) {}

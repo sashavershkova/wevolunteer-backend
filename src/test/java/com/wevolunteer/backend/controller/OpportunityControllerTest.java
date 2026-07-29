@@ -77,6 +77,6 @@ class OpportunityControllerTest {
                 10,
                 3,
                 7,
-                "9:00 AM - 1:00 PM", List.of("Sort and organize donations", "Help set up the distribution area"));
+                "9:00 AM - 1:00 PM", List.of("Sort and organize donations", "Help set up the distribution area"), false);
     }
 }

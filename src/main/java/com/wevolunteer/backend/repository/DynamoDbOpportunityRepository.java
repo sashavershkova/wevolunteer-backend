@@ -300,6 +300,8 @@ public class DynamoDbOpportunityRepository implements OpportunityRepository {
         item.put("whatYoullDo", AttributeValue.fromL(
                 whatYoullDo.stream().map(AttributeValue::fromS).toList()));
 
+        item.put("recurring", AttributeValue.fromBool(opportunity.recurring()));
+
         if ("OPEN".equals(opportunity.status())) {
                 item.put("GSI1PK", AttributeValue.fromS("OPPORTUNITIES#OPEN"));
                 item.put("GSI1SK", AttributeValue.fromS(dateSortKey));
@@ -335,7 +337,8 @@ public class DynamoDbOpportunityRepository implements OpportunityRepository {
                 registeredCount,
                 capacity - registeredCount,
                 optionalString(item, "time"),
-                optionalStringList(item, "whatYoullDo")
+                optionalStringList(item, "whatYoullDo"),
+                optionalBoolean(item, "recurring")
         );
     }
 
@@ -359,6 +362,15 @@ public class DynamoDbOpportunityRepository implements OpportunityRepository {
         }
 
         return value.l().stream().map(AttributeValue::s).toList();
+    }
+
+    /**
+     * Reads a Boolean attribute that may be absent on items written before the attribute
+     * existed, defaulting to false.
+     */
+    private static boolean optionalBoolean(Map<String, AttributeValue> item, String key) {
+        AttributeValue value = item.get(key);
+        return value != null && Boolean.TRUE.equals(value.bool());
     }
 
     @Override
@@ -465,7 +477,8 @@ public class DynamoDbOpportunityRepository implements OpportunityRepository {
                 existingOpportunity.registeredCount(),
                 existingOpportunity.availableSpots(),
                 existingOpportunity.time(),
-                existingOpportunity.whatYoullDo()
+                existingOpportunity.whatYoullDo(),
+                existingOpportunity.recurring()
         );
     }
 }
