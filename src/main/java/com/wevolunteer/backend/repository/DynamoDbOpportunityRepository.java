@@ -292,6 +292,7 @@ public class DynamoDbOpportunityRepository implements OpportunityRepository {
         item.put("organizationName", AttributeValue.fromS(opportunity.organizationName()));
         item.put("capacity", AttributeValue.fromN(String.valueOf(opportunity.capacity())));
         item.put("registeredCount", AttributeValue.fromN(String.valueOf(opportunity.registeredCount())));
+        item.put("time", AttributeValue.fromS(opportunity.time() != null ? opportunity.time() : ""));
 
         if ("OPEN".equals(opportunity.status())) {
                 item.put("GSI1PK", AttributeValue.fromS("OPPORTUNITIES#OPEN"));
@@ -326,8 +327,17 @@ public class DynamoDbOpportunityRepository implements OpportunityRepository {
                 item.get("organizationName").s(),
                 capacity,
                 registeredCount,
-                capacity - registeredCount
+                capacity - registeredCount,
+                optionalString(item, "time")
         );
+    }
+
+    /**
+     * Reads a String attribute that may be absent on items written before the attribute existed.
+     */
+    private static String optionalString(Map<String, AttributeValue> item, String key) {
+        AttributeValue value = item.get(key);
+        return value != null ? value.s() : null;
     }
 
     @Override
@@ -432,7 +442,8 @@ public class DynamoDbOpportunityRepository implements OpportunityRepository {
                 existingOpportunity.organizationName(),
                 existingOpportunity.capacity(),
                 existingOpportunity.registeredCount(),
-                existingOpportunity.availableSpots()
+                existingOpportunity.availableSpots(),
+                existingOpportunity.time()
         );
     }
 }

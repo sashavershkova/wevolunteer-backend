@@ -299,7 +299,8 @@ class OrganizationServiceTest {
                 "Green Earth",
                 10,
                 0,
-                10);
+                10,
+                "9:00 AM - 1:00 PM");
     }
 
     private static Registration registration(String userId, String opportunityId) {

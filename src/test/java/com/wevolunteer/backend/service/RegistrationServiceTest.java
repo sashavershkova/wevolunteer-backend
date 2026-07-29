@@ -191,7 +191,8 @@ class RegistrationServiceTest {
             when(opportunityRepository.findById(OPPORTUNITY_ID))
                     .thenReturn(Optional.of(new Opportunity(
                             OPPORTUNITY_ID, "Beach Cleanup", "Pick up litter", "ENVIRONMENT",
-                            "Seattle, WA", "2026-08-01", "CLOSED", ORG_ID, ORG_NAME, 10, 10, 0)));
+                            "Seattle, WA", "2026-08-01", "CLOSED", ORG_ID, ORG_NAME, 10, 10, 0,
+                            "9:00 AM - 1:00 PM")));
 
             registrationService.register(new RegisterRequest(USER_ID, OPPORTUNITY_ID));
 
@@ -262,7 +263,8 @@ class RegistrationServiceTest {
                 ORG_NAME,
                 capacity,
                 registeredCount,
-                capacity - registeredCount);
+                capacity - registeredCount,
+                "9:00 AM - 1:00 PM");
     }
 
     private static Registration registration(String userId, String opportunityId) {

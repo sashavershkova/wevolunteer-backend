@@ -74,6 +74,7 @@ class OpportunityControllerTest {
                 ORG_NAME,
                 10,
                 3,
-                7);
+                7,
+                "9:00 AM - 1:00 PM");
     }
 }

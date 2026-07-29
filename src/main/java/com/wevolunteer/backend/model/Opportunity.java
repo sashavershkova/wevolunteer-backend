@@ -12,5 +12,6 @@ public record Opportunity(
         String organizationName,
         int capacity,
         int registeredCount,
-        int availableSpots
+        int availableSpots,
+        String time
 ) {}

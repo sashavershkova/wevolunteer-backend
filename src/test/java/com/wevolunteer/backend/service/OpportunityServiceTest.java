@@ -357,7 +357,7 @@ class OpportunityServiceTest {
         void derivesInitialState() {
             CreateOpportunityRequest request = new CreateOpportunityRequest(
                     OPPORTUNITY_ID, "Beach Cleanup", "Pick up litter", "ENVIRONMENT",
-                    "Seattle, WA", "2026-08-01", 25);
+                    "Seattle, WA", "2026-08-01", 25, "10:00 AM - 2:00 PM");
             when(opportunityRepository.save(any(Opportunity.class)))
                     .thenAnswer(call -> call.getArgument(0));
 
@@ -369,7 +369,8 @@ class OpportunityServiceTest {
 
             assertThat(captor.getValue()).isEqualTo(new Opportunity(
                     OPPORTUNITY_ID, "Beach Cleanup", "Pick up litter", "ENVIRONMENT",
-                    "Seattle, WA", "2026-08-01", "OPEN", ORG_ID, ORG_NAME, 25, 0, 25));
+                    "Seattle, WA", "2026-08-01", "OPEN", ORG_ID, ORG_NAME, 25, 0, 25,
+                    "10:00 AM - 2:00 PM"));
             assertThat(result).isEqualTo(captor.getValue());
         }
 
@@ -378,7 +379,7 @@ class OpportunityServiceTest {
         void usesCallerOrganizationDetails() {
             CreateOpportunityRequest request = new CreateOpportunityRequest(
                     OPPORTUNITY_ID, "Beach Cleanup", "Pick up litter", "ENVIRONMENT",
-                    "Seattle, WA", "2026-08-01", 25);
+                    "Seattle, WA", "2026-08-01", 25, "10:00 AM - 2:00 PM");
             when(opportunityRepository.save(any(Opportunity.class)))
                     .thenAnswer(call -> call.getArgument(0));
 
@@ -394,7 +395,7 @@ class OpportunityServiceTest {
         void doesNotValidateDate() {
             CreateOpportunityRequest request = new CreateOpportunityRequest(
                     OPPORTUNITY_ID, "Beach Cleanup", "Pick up litter", "ENVIRONMENT",
-                    "Seattle, WA", "not-a-date", 25);
+                    "Seattle, WA", "not-a-date", 25, "10:00 AM - 2:00 PM");
             when(opportunityRepository.save(any(Opportunity.class)))
                     .thenAnswer(call -> call.getArgument(0));
 
@@ -417,13 +418,13 @@ class OpportunityServiceTest {
 
             UpdateOpportunityRequest request = new UpdateOpportunityRequest(
                     "New Title", "New description", "EDUCATION", "Tacoma, WA",
-                    "2026-09-01", "OPEN", 20);
+                    "2026-09-01", "OPEN", 20, "9:00 AM - 1:00 PM");
 
             Opportunity result = opportunityService.updateOpportunity(OPPORTUNITY_ID, request);
 
             assertThat(result).isEqualTo(new Opportunity(
                     OPPORTUNITY_ID, "New Title", "New description", "EDUCATION", "Tacoma, WA",
-                    "2026-09-01", "OPEN", ORG_ID, ORG_NAME, 20, 4, 16));
+                    "2026-09-01", "OPEN", ORG_ID, ORG_NAME, 20, 4, 16, "9:00 AM - 1:00 PM"));
         }
 
         @Test
@@ -436,7 +437,7 @@ class OpportunityServiceTest {
 
             opportunityService.updateOpportunity(OPPORTUNITY_ID, new UpdateOpportunityRequest(
                     "New Title", "New description", "EDUCATION", "Tacoma, WA",
-                    "2026-09-01", "OPEN", 20));
+                    "2026-09-01", "OPEN", 20, "9:00 AM - 1:00 PM"));
 
             InOrder inOrder = inOrder(opportunityRepository);
             inOrder.verify(opportunityRepository).findById(OPPORTUNITY_ID);
@@ -455,7 +456,7 @@ class OpportunityServiceTest {
             Opportunity result = opportunityService.updateOpportunity(
                     OPPORTUNITY_ID,
                     new UpdateOpportunityRequest("Beach Cleanup", "Pick up litter", "ENVIRONMENT",
-                            "Seattle, WA", "2026-08-01", "OPEN", newCapacity));
+                            "Seattle, WA", "2026-08-01", "OPEN", newCapacity, "9:00 AM - 1:00 PM"));
 
             assertThat(result.registeredCount()).isEqualTo(registeredCount);
             assertThat(result.availableSpots()).isEqualTo(expectedAvailable);
@@ -473,7 +474,7 @@ class OpportunityServiceTest {
             Opportunity result = opportunityService.updateOpportunity(
                     OPPORTUNITY_ID,
                     new UpdateOpportunityRequest("Beach Cleanup", "Pick up litter", "ENVIRONMENT",
-                            "Seattle, WA", "2026-08-01", requestedStatus, 10));
+                            "Seattle, WA", "2026-08-01", requestedStatus, 10, "9:00 AM - 1:00 PM"));
 
             assertThat(result.status()).isEqualTo(storedStatus);
         }
@@ -489,7 +490,7 @@ class OpportunityServiceTest {
             Opportunity result = opportunityService.updateOpportunity(
                     OPPORTUNITY_ID,
                     new UpdateOpportunityRequest("Beach Cleanup", "Pick up litter", "ENVIRONMENT",
-                            "Seattle, WA", "2026-08-01", "CLOSED", 10));
+                            "Seattle, WA", "2026-08-01", "CLOSED", 10, "9:00 AM - 1:00 PM"));
 
             assertThat(result.status()).isEqualTo("OPEN");
 
@@ -506,7 +507,7 @@ class OpportunityServiceTest {
             assertThatThrownBy(() -> opportunityService.updateOpportunity(
                     OPPORTUNITY_ID,
                     new UpdateOpportunityRequest("New Title", "New description", "EDUCATION",
-                            "Tacoma, WA", "2026-09-01", "OPEN", 20)))
+                            "Tacoma, WA", "2026-09-01", "OPEN", 20, "9:00 AM - 1:00 PM")))
                     .isInstanceOf(NotFoundException.class)
                     .hasMessage("Opportunity not found: " + OPPORTUNITY_ID);
 
@@ -529,6 +530,7 @@ class OpportunityServiceTest {
                 ORG_NAME,
                 capacity,
                 registeredCount,
-                capacity - registeredCount);
+                capacity - registeredCount,
+                "9:00 AM - 1:00 PM");
     }
 }

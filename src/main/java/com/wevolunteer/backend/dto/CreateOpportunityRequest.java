@@ -10,5 +10,6 @@ public record CreateOpportunityRequest(
         @NotBlank String category,
         @NotBlank String location,
         @NotBlank String date,
-        @Min(1) int capacity
+        @Min(1) int capacity,
+        String time
 ) {}

@@ -10,5 +10,6 @@ public record UpdateOpportunityRequest(
         @NotBlank String location,
         @NotBlank String date,
         @NotBlank String status,
-        @Min(1) int capacity
+        @Min(1) int capacity,
+        String time
 ) {}

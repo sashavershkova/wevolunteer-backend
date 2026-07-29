@@ -61,7 +61,7 @@ class OrganizationControllerTest {
 
         CreateOpportunityRequest request = new CreateOpportunityRequest(
                 "opp-1", "Beach Cleanup", "Help clean the beach",
-                "Environment", "Seattle, WA", "2026-08-01", 10);
+                "Environment", "Seattle, WA", "2026-08-01", 10, "9:00 AM - 1:00 PM");
 
         Opportunity expected = opportunity();
         when(opportunityService.createOpportunity(ORGANIZATION_ID, "Green Earth", request))
@@ -106,6 +106,7 @@ class OrganizationControllerTest {
                 "Green Earth",
                 10,
                 0,
-                10);
+                10,
+                "9:00 AM - 1:00 PM");
     }
 }
