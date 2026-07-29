@@ -82,6 +82,15 @@ public class OrganizationController {
                 organizationService.createOrganization(jwt.getSubject(), request));
     }
 
+    @PatchMapping("/organizations/me")
+    public OrganizationProfileResponse updateCurrentOrganization(
+            @AuthenticationPrincipal Jwt jwt,
+            @Valid @RequestBody UpdateOrganizationRequest request) {
+
+        return OrganizationProfileResponse.from(
+                organizationService.updateOrganization(jwt.getSubject(), request));
+    }
+
     @PatchMapping("/organizations/{organizationId}")
     public OrganizationProfileResponse updateOrganization(
             @PathVariable String organizationId,
@@ -89,7 +98,7 @@ public class OrganizationController {
 
         return OrganizationProfileResponse.from(
                 organizationService.updateOrganization(organizationId, request));
-    }   
+    }
 
     @DeleteMapping("/organizations/{organizationId}")
     public void deleteOrganization(@PathVariable String organizationId) {

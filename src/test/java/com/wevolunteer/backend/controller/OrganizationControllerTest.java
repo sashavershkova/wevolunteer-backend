@@ -1,10 +1,14 @@
 package com.wevolunteer.backend.controller;
 
 import com.wevolunteer.backend.dto.CreateOpportunityRequest;
+import com.wevolunteer.backend.dto.UpdateOrganizationRequest;
 import com.wevolunteer.backend.model.Opportunity;
 import com.wevolunteer.backend.model.Organization;
 import com.wevolunteer.backend.service.OpportunityService;
 import com.wevolunteer.backend.service.OrganizationService;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.Validation;
+import jakarta.validation.Validator;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -15,6 +19,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 
 import java.lang.reflect.Method;
 import java.util.List;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -91,6 +96,73 @@ class OrganizationControllerTest {
                 method.getAnnotation(org.springframework.web.bind.annotation.PostMapping.class);
 
         assertThat(mapping.value()).containsExactly("/organizations/me/opportunities");
+    }
+
+    @Test
+    @DisplayName("updateCurrentOrganization uses the JWT subject as the organization ID and delegates to the service")
+    void updateCurrentOrganizationUsesJwtSubjectAsOrganizationId() {
+        when(jwt.getSubject()).thenReturn(ORGANIZATION_ID);
+        UpdateOrganizationRequest request = new UpdateOrganizationRequest(
+                "New Name", "New description", "new@example.com", "https://new.example.com");
+        Organization updated = new Organization(
+                ORGANIZATION_ID, "New Name", "New description", "new@example.com",
+                "https://new.example.com");
+        when(organizationService.updateOrganization(ORGANIZATION_ID, request)).thenReturn(updated);
+
+        var result = organizationController.updateCurrentOrganization(jwt, request);
+
+        verify(organizationService).updateOrganization(ORGANIZATION_ID, request);
+        assertThat(result.organizationId()).isEqualTo(ORGANIZATION_ID);
+        assertThat(result.name()).isEqualTo("New Name");
+        assertThat(result.email()).isEqualTo("new@example.com");
+    }
+
+    @Test
+    @DisplayName("updateCurrentOrganization is mapped to PATCH /organizations/me and has no path variable for organization ID")
+    void updateCurrentOrganizationIsMappedToMeRouteWithNoIdParameter() throws NoSuchMethodException {
+        Method method = OrganizationController.class.getMethod(
+                "updateCurrentOrganization", Jwt.class, UpdateOrganizationRequest.class);
+        org.springframework.web.bind.annotation.PatchMapping mapping =
+                method.getAnnotation(org.springframework.web.bind.annotation.PatchMapping.class);
+
+        assertThat(mapping.value()).containsExactly("/organizations/me");
+        assertThat(method.getParameterTypes()).containsExactly(Jwt.class, UpdateOrganizationRequest.class);
+    }
+
+    @Test
+    @DisplayName("updateCurrentOrganization has no overload accepting a client-supplied organization ID")
+    void updateCurrentOrganizationCannotChooseADifferentOrganizationId() {
+        assertThatThrownBy(() -> OrganizationController.class.getMethod(
+                "updateCurrentOrganization", String.class, UpdateOrganizationRequest.class))
+                .isInstanceOf(NoSuchMethodException.class);
+    }
+
+    @Test
+    @DisplayName("UpdateOrganizationRequest rejects a blank name, which Spring maps to 400 Bad Request")
+    void blankNameFailsValidation() {
+        UpdateOrganizationRequest request = new UpdateOrganizationRequest(
+                " ", "description", "valid@example.com", "https://example.com");
+
+        Set<ConstraintViolation<UpdateOrganizationRequest>> violations = validator().validate(request);
+
+        assertThat(violations)
+                .anyMatch(v -> v.getPropertyPath().toString().equals("name"));
+    }
+
+    @Test
+    @DisplayName("UpdateOrganizationRequest rejects an invalid email, which Spring maps to 400 Bad Request")
+    void invalidEmailFailsValidation() {
+        UpdateOrganizationRequest request = new UpdateOrganizationRequest(
+                "Green Earth", "description", "not-an-email", "https://example.com");
+
+        Set<ConstraintViolation<UpdateOrganizationRequest>> violations = validator().validate(request);
+
+        assertThat(violations)
+                .anyMatch(v -> v.getPropertyPath().toString().equals("email"));
+    }
+
+    private static Validator validator() {
+        return Validation.buildDefaultValidatorFactory().getValidator();
     }
 
     private static Opportunity opportunity() {
