@@ -13,7 +13,8 @@ public record CreateOpportunityRequest(
         @NotBlank String location,
         @NotBlank String date,
         @Min(1) int capacity,
-        String time,
+        @NotBlank String startTime,
+        @NotBlank String endTime,
         List<String> whatYoullDo,
         boolean recurring
 ) {}

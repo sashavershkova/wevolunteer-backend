@@ -9,6 +9,7 @@ import com.wevolunteer.backend.exception.ForbiddenException;
 import com.wevolunteer.backend.exception.NotFoundException;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.format.DateTimeParseException;
 import java.util.List;
 
@@ -88,6 +89,8 @@ public class OpportunityService {
             String organizationName,
             CreateOpportunityRequest request) {
 
+        validateTimeRange(request.startTime(), request.endTime());
+
         Opportunity opportunity = new Opportunity(
                 request.opportunityId(),
                 request.title(),
@@ -101,7 +104,11 @@ public class OpportunityService {
                 request.capacity(),
                 0,
                 request.capacity(),
-                request.time(),
+                // Legacy free-text time is never invented for new opportunities; startTime/endTime
+                // are the source of truth going forward.
+                null,
+                request.startTime(),
+                request.endTime(),
                 request.whatYoullDo(),
                 request.recurring()
         );
@@ -112,6 +119,8 @@ public class OpportunityService {
     public Opportunity updateOpportunity(
             String opportunityId,
             UpdateOpportunityRequest request) {
+
+        validateTimeRange(request.startTime(), request.endTime());
 
         Opportunity existingOpportunity = getById(opportunityId);
 
@@ -128,7 +137,12 @@ public class OpportunityService {
                 request.capacity(),
                 existingOpportunity.registeredCount(),
                 request.capacity() - existingOpportunity.registeredCount(),
-                request.time(),
+                // The edit now always supplies structured startTime/endTime, so the legacy
+                // free-text time no longer describes the current opportunity - clear it rather
+                // than carrying stale text forward.
+                null,
+                request.startTime(),
+                request.endTime(),
                 request.whatYoullDo(),
                 request.recurring(),
                 // update() rewrites the whole item, and UpdateOpportunityRequest carries no image
@@ -167,6 +181,23 @@ public class OpportunityService {
 
         if (end.isBefore(start)) {
             throw new IllegalArgumentException("endDate must be on or after startDate");
+        }
+    }
+
+    // MVP assumes an opportunity starts and ends on the same date; overnight ranges (e.g.
+    // 22:00-02:00) are not supported.
+    private void validateTimeRange(String startTime, String endTime) {
+        LocalTime start;
+        LocalTime end;
+        try {
+            start = LocalTime.parse(startTime);
+            end = LocalTime.parse(endTime);
+        } catch (DateTimeParseException e) {
+            throw new IllegalArgumentException("startTime and endTime must be valid times in HH:mm format");
+        }
+
+        if (!end.isAfter(start)) {
+            throw new IllegalArgumentException("End time must be later than start time.");
         }
     }
 }

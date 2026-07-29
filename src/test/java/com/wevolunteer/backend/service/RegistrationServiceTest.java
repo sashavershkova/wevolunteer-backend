@@ -192,7 +192,7 @@ class RegistrationServiceTest {
                     .thenReturn(Optional.of(new Opportunity(
                             OPPORTUNITY_ID, "Beach Cleanup", "Pick up litter", "ENVIRONMENT",
                             "Seattle, WA", "2026-08-01", "CLOSED", ORG_ID, ORG_NAME, 10, 10, 0,
-                            "9:00 AM - 1:00 PM", List.of("Sort and organize donations", "Help set up the distribution area"), false)));
+                            null, "09:00", "12:00", List.of("Sort and organize donations", "Help set up the distribution area"), false)));
 
             registrationService.register(new RegisterRequest(USER_ID, OPPORTUNITY_ID));
 
@@ -264,7 +264,7 @@ class RegistrationServiceTest {
                 capacity,
                 registeredCount,
                 capacity - registeredCount,
-                "9:00 AM - 1:00 PM", List.of("Sort and organize donations", "Help set up the distribution area"), false);
+                null, "09:00", "12:00", List.of("Sort and organize donations", "Help set up the distribution area"), false);
     }
 
     private static Registration registration(String userId, String opportunityId) {

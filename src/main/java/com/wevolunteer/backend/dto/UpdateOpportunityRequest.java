@@ -13,7 +13,8 @@ public record UpdateOpportunityRequest(
         @NotBlank String date,
         @NotBlank String status,
         @Min(1) int capacity,
-        String time,
+        @NotBlank String startTime,
+        @NotBlank String endTime,
         List<String> whatYoullDo,
         boolean recurring
 ) {}

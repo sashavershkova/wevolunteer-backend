@@ -293,6 +293,8 @@ public class DynamoDbOpportunityRepository implements OpportunityRepository {
         item.put("capacity", AttributeValue.fromN(String.valueOf(opportunity.capacity())));
         item.put("registeredCount", AttributeValue.fromN(String.valueOf(opportunity.registeredCount())));
         item.put("time", AttributeValue.fromS(opportunity.time() != null ? opportunity.time() : ""));
+        item.put("startTime", AttributeValue.fromS(opportunity.startTime() != null ? opportunity.startTime() : ""));
+        item.put("endTime", AttributeValue.fromS(opportunity.endTime() != null ? opportunity.endTime() : ""));
 
         List<String> whatYoullDo = opportunity.whatYoullDo() != null
                 ? opportunity.whatYoullDo()
@@ -344,6 +346,8 @@ public class DynamoDbOpportunityRepository implements OpportunityRepository {
                 registeredCount,
                 capacity - registeredCount,
                 optionalString(item, "time"),
+                optionalString(item, "startTime"),
+                optionalString(item, "endTime"),
                 optionalStringList(item, "whatYoullDo"),
                 optionalBoolean(item, "recurring"),
                 optionalString(item, "imageKey")
@@ -485,6 +489,8 @@ public class DynamoDbOpportunityRepository implements OpportunityRepository {
                 existingOpportunity.registeredCount(),
                 existingOpportunity.availableSpots(),
                 existingOpportunity.time(),
+                existingOpportunity.startTime(),
+                existingOpportunity.endTime(),
                 existingOpportunity.whatYoullDo(),
                 existingOpportunity.recurring()
         );

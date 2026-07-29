@@ -6,6 +6,9 @@ import com.wevolunteer.backend.exception.ForbiddenException;
 import com.wevolunteer.backend.exception.NotFoundException;
 import com.wevolunteer.backend.model.Opportunity;
 import com.wevolunteer.backend.repository.OpportunityRepository;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.Validation;
+import jakarta.validation.Validator;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -22,6 +25,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -357,7 +361,7 @@ class OpportunityServiceTest {
         void derivesInitialState() {
             CreateOpportunityRequest request = new CreateOpportunityRequest(
                     OPPORTUNITY_ID, "Beach Cleanup", "Pick up litter", "ENVIRONMENT",
-                    "Seattle, WA", "2026-08-01", 25, "10:00 AM - 2:00 PM", List.of("Sort and organize donations", "Help set up the distribution area"), false);
+                    "Seattle, WA", "2026-08-01", 25, "09:00", "12:00", List.of("Sort and organize donations", "Help set up the distribution area"), false);
             when(opportunityRepository.save(any(Opportunity.class)))
                     .thenAnswer(call -> call.getArgument(0));
 
@@ -370,7 +374,7 @@ class OpportunityServiceTest {
             assertThat(captor.getValue()).isEqualTo(new Opportunity(
                     OPPORTUNITY_ID, "Beach Cleanup", "Pick up litter", "ENVIRONMENT",
                     "Seattle, WA", "2026-08-01", "OPEN", ORG_ID, ORG_NAME, 25, 0, 25,
-                    "10:00 AM - 2:00 PM", List.of("Sort and organize donations", "Help set up the distribution area"), false));
+                    null, "09:00", "12:00", List.of("Sort and organize donations", "Help set up the distribution area"), false));
             assertThat(result).isEqualTo(captor.getValue());
         }
 
@@ -379,7 +383,7 @@ class OpportunityServiceTest {
         void usesCallerOrganizationDetails() {
             CreateOpportunityRequest request = new CreateOpportunityRequest(
                     OPPORTUNITY_ID, "Beach Cleanup", "Pick up litter", "ENVIRONMENT",
-                    "Seattle, WA", "2026-08-01", 25, "10:00 AM - 2:00 PM", List.of("Sort and organize donations", "Help set up the distribution area"), false);
+                    "Seattle, WA", "2026-08-01", 25, "09:00", "12:00", List.of("Sort and organize donations", "Help set up the distribution area"), false);
             when(opportunityRepository.save(any(Opportunity.class)))
                     .thenAnswer(call -> call.getArgument(0));
 
@@ -395,12 +399,41 @@ class OpportunityServiceTest {
         void doesNotValidateDate() {
             CreateOpportunityRequest request = new CreateOpportunityRequest(
                     OPPORTUNITY_ID, "Beach Cleanup", "Pick up litter", "ENVIRONMENT",
-                    "Seattle, WA", "not-a-date", 25, "10:00 AM - 2:00 PM", List.of("Sort and organize donations", "Help set up the distribution area"), false);
+                    "Seattle, WA", "not-a-date", 25, "09:00", "12:00", List.of("Sort and organize donations", "Help set up the distribution area"), false);
             when(opportunityRepository.save(any(Opportunity.class)))
                     .thenAnswer(call -> call.getArgument(0));
 
             assertThatCode(() -> opportunityService.createOpportunity(ORG_ID, ORG_NAME, request))
                     .doesNotThrowAnyException();
+        }
+
+        @Test
+        @DisplayName("passes request.startTime() and request.endTime() into the saved Opportunity")
+        void passesTimeThrough() {
+            CreateOpportunityRequest request = new CreateOpportunityRequest(
+                    OPPORTUNITY_ID, "Beach Cleanup", "Pick up litter", "ENVIRONMENT",
+                    "Seattle, WA", "2026-08-01", 25, "14:30", "16:00", List.of("Sort and organize donations", "Help set up the distribution area"), false);
+            when(opportunityRepository.save(any(Opportunity.class)))
+                    .thenAnswer(call -> call.getArgument(0));
+
+            Opportunity result = opportunityService.createOpportunity(ORG_ID, ORG_NAME, request);
+
+            assertThat(result.startTime()).isEqualTo("14:30");
+            assertThat(result.endTime()).isEqualTo("16:00");
+        }
+
+        @Test
+        @DisplayName("leaves the legacy time field null instead of inventing a combined string")
+        void leavesLegacyTimeNull() {
+            CreateOpportunityRequest request = new CreateOpportunityRequest(
+                    OPPORTUNITY_ID, "Beach Cleanup", "Pick up litter", "ENVIRONMENT",
+                    "Seattle, WA", "2026-08-01", 25, "09:00", "12:00", List.of("Sort and organize donations", "Help set up the distribution area"), false);
+            when(opportunityRepository.save(any(Opportunity.class)))
+                    .thenAnswer(call -> call.getArgument(0));
+
+            Opportunity result = opportunityService.createOpportunity(ORG_ID, ORG_NAME, request);
+
+            assertThat(result.time()).isNull();
         }
     }
 
@@ -418,13 +451,13 @@ class OpportunityServiceTest {
 
             UpdateOpportunityRequest request = new UpdateOpportunityRequest(
                     "New Title", "New description", "EDUCATION", "Tacoma, WA",
-                    "2026-09-01", "OPEN", 20, "9:00 AM - 1:00 PM", List.of("Sort and organize donations", "Help set up the distribution area"), false);
+                    "2026-09-01", "OPEN", 20, "09:00", "12:00", List.of("Sort and organize donations", "Help set up the distribution area"), false);
 
             Opportunity result = opportunityService.updateOpportunity(OPPORTUNITY_ID, request);
 
             assertThat(result).isEqualTo(new Opportunity(
                     OPPORTUNITY_ID, "New Title", "New description", "EDUCATION", "Tacoma, WA",
-                    "2026-09-01", "OPEN", ORG_ID, ORG_NAME, 20, 4, 16, "9:00 AM - 1:00 PM", List.of("Sort and organize donations", "Help set up the distribution area"), false));
+                    "2026-09-01", "OPEN", ORG_ID, ORG_NAME, 20, 4, 16, null, "09:00", "12:00", List.of("Sort and organize donations", "Help set up the distribution area"), false));
         }
 
         @Test
@@ -437,7 +470,7 @@ class OpportunityServiceTest {
 
             opportunityService.updateOpportunity(OPPORTUNITY_ID, new UpdateOpportunityRequest(
                     "New Title", "New description", "EDUCATION", "Tacoma, WA",
-                    "2026-09-01", "OPEN", 20, "9:00 AM - 1:00 PM", List.of("Sort and organize donations", "Help set up the distribution area"), false));
+                    "2026-09-01", "OPEN", 20, "09:00", "12:00", List.of("Sort and organize donations", "Help set up the distribution area"), false));
 
             InOrder inOrder = inOrder(opportunityRepository);
             inOrder.verify(opportunityRepository).findById(OPPORTUNITY_ID);
@@ -456,7 +489,7 @@ class OpportunityServiceTest {
             Opportunity result = opportunityService.updateOpportunity(
                     OPPORTUNITY_ID,
                     new UpdateOpportunityRequest("Beach Cleanup", "Pick up litter", "ENVIRONMENT",
-                            "Seattle, WA", "2026-08-01", "OPEN", newCapacity, "9:00 AM - 1:00 PM", List.of("Sort and organize donations", "Help set up the distribution area"), false));
+                            "Seattle, WA", "2026-08-01", "OPEN", newCapacity, "09:00", "12:00", List.of("Sort and organize donations", "Help set up the distribution area"), false));
 
             assertThat(result.registeredCount()).isEqualTo(registeredCount);
             assertThat(result.availableSpots()).isEqualTo(expectedAvailable);
@@ -474,7 +507,7 @@ class OpportunityServiceTest {
             Opportunity result = opportunityService.updateOpportunity(
                     OPPORTUNITY_ID,
                     new UpdateOpportunityRequest("Beach Cleanup", "Pick up litter", "ENVIRONMENT",
-                            "Seattle, WA", "2026-08-01", requestedStatus, 10, "9:00 AM - 1:00 PM", List.of("Sort and organize donations", "Help set up the distribution area"), false));
+                            "Seattle, WA", "2026-08-01", requestedStatus, 10, "09:00", "12:00", List.of("Sort and organize donations", "Help set up the distribution area"), false));
 
             assertThat(result.status()).isEqualTo(storedStatus);
         }
@@ -490,7 +523,7 @@ class OpportunityServiceTest {
             Opportunity result = opportunityService.updateOpportunity(
                     OPPORTUNITY_ID,
                     new UpdateOpportunityRequest("Beach Cleanup", "Pick up litter", "ENVIRONMENT",
-                            "Seattle, WA", "2026-08-01", "CLOSED", 10, "9:00 AM - 1:00 PM", List.of("Sort and organize donations", "Help set up the distribution area"), false));
+                            "Seattle, WA", "2026-08-01", "CLOSED", 10, "09:00", "12:00", List.of("Sort and organize donations", "Help set up the distribution area"), false));
 
             assertThat(result.status()).isEqualTo("OPEN");
 
@@ -507,11 +540,50 @@ class OpportunityServiceTest {
             assertThatThrownBy(() -> opportunityService.updateOpportunity(
                     OPPORTUNITY_ID,
                     new UpdateOpportunityRequest("New Title", "New description", "EDUCATION",
-                            "Tacoma, WA", "2026-09-01", "OPEN", 20, "9:00 AM - 1:00 PM", List.of("Sort and organize donations", "Help set up the distribution area"), false)))
+                            "Tacoma, WA", "2026-09-01", "OPEN", 20, "09:00", "12:00", List.of("Sort and organize donations", "Help set up the distribution area"), false)))
                     .isInstanceOf(NotFoundException.class)
                     .hasMessage("Opportunity not found: " + OPPORTUNITY_ID);
 
             verify(opportunityRepository, never()).update(any());
+        }
+
+        @Test
+        @DisplayName("passes request.startTime() and request.endTime() into the updated Opportunity")
+        void passesTimeThrough() {
+            when(opportunityRepository.findById(OPPORTUNITY_ID))
+                    .thenReturn(Optional.of(opportunity(OPPORTUNITY_ID, "OPEN", 10, 4)));
+            when(opportunityRepository.update(any(Opportunity.class)))
+                    .thenAnswer(call -> call.getArgument(0));
+
+            UpdateOpportunityRequest request = new UpdateOpportunityRequest(
+                    "New Title", "New description", "EDUCATION", "Tacoma, WA",
+                    "2026-09-01", "OPEN", 20, "16:45", "18:00", List.of("Sort and organize donations", "Help set up the distribution area"), false);
+
+            Opportunity result = opportunityService.updateOpportunity(OPPORTUNITY_ID, request);
+
+            assertThat(result.startTime()).isEqualTo("16:45");
+            assertThat(result.endTime()).isEqualTo("18:00");
+        }
+
+        @Test
+        @DisplayName("clears the legacy time field instead of carrying stale text forward")
+        void clearsLegacyTimeField() {
+            Opportunity existingWithLegacyTime = new Opportunity(
+                    OPPORTUNITY_ID, "Beach Cleanup", "Pick up litter", "ENVIRONMENT",
+                    "Seattle, WA", "2026-08-01", "OPEN", ORG_ID, ORG_NAME, 10, 4, 6,
+                    "9:00 AM - 1:00 PM", null, null, List.of(), false);
+            when(opportunityRepository.findById(OPPORTUNITY_ID))
+                    .thenReturn(Optional.of(existingWithLegacyTime));
+            when(opportunityRepository.update(any(Opportunity.class)))
+                    .thenAnswer(call -> call.getArgument(0));
+
+            UpdateOpportunityRequest request = new UpdateOpportunityRequest(
+                    "New Title", "New description", "EDUCATION", "Tacoma, WA",
+                    "2026-09-01", "OPEN", 20, "09:00", "12:00", List.of("Sort and organize donations", "Help set up the distribution area"), false);
+
+            Opportunity result = opportunityService.updateOpportunity(OPPORTUNITY_ID, request);
+
+            assertThat(result.time()).isNull();
         }
     }
 
@@ -571,7 +643,168 @@ class OpportunityServiceTest {
         private UpdateOpportunityRequest updateRequest() {
             return new UpdateOpportunityRequest(
                     "Updated Title", "Updated description", "ENVIRONMENT", "Seattle, WA",
-                    "2026-09-01", "OPEN", 12, "10:00 AM", List.of("Do things"), false);
+                    "2026-09-01", "OPEN", 12, "09:00", "12:00", List.of("Do things"), false);
+        }
+    }
+
+    @Nested
+    @DisplayName("time field validation")
+    class TimeFieldValidation {
+
+        @Test
+        @DisplayName("CreateOpportunityRequest rejects a blank startTime, which Spring maps to 400 Bad Request")
+        void blankCreateStartTimeFailsValidation() {
+            CreateOpportunityRequest request = new CreateOpportunityRequest(
+                    OPPORTUNITY_ID, "Beach Cleanup", "Pick up litter", "ENVIRONMENT",
+                    "Seattle, WA", "2026-08-01", 25, " ", "12:00",
+                    List.of("Sort and organize donations"), false);
+
+            Set<ConstraintViolation<CreateOpportunityRequest>> violations = validator().validate(request);
+
+            assertThat(violations)
+                    .anyMatch(v -> v.getPropertyPath().toString().equals("startTime"));
+        }
+
+        @Test
+        @DisplayName("CreateOpportunityRequest rejects a blank endTime, which Spring maps to 400 Bad Request")
+        void blankCreateEndTimeFailsValidation() {
+            CreateOpportunityRequest request = new CreateOpportunityRequest(
+                    OPPORTUNITY_ID, "Beach Cleanup", "Pick up litter", "ENVIRONMENT",
+                    "Seattle, WA", "2026-08-01", 25, "09:00", " ",
+                    List.of("Sort and organize donations"), false);
+
+            Set<ConstraintViolation<CreateOpportunityRequest>> violations = validator().validate(request);
+
+            assertThat(violations)
+                    .anyMatch(v -> v.getPropertyPath().toString().equals("endTime"));
+        }
+
+        @Test
+        @DisplayName("UpdateOpportunityRequest rejects a blank startTime, which Spring maps to 400 Bad Request")
+        void blankUpdateStartTimeFailsValidation() {
+            UpdateOpportunityRequest request = new UpdateOpportunityRequest(
+                    "New Title", "New description", "EDUCATION", "Tacoma, WA",
+                    "2026-09-01", "OPEN", 20, " ", "12:00",
+                    List.of("Sort and organize donations"), false);
+
+            Set<ConstraintViolation<UpdateOpportunityRequest>> violations = validator().validate(request);
+
+            assertThat(violations)
+                    .anyMatch(v -> v.getPropertyPath().toString().equals("startTime"));
+        }
+
+        @Test
+        @DisplayName("UpdateOpportunityRequest rejects a blank endTime, which Spring maps to 400 Bad Request")
+        void blankUpdateEndTimeFailsValidation() {
+            UpdateOpportunityRequest request = new UpdateOpportunityRequest(
+                    "New Title", "New description", "EDUCATION", "Tacoma, WA",
+                    "2026-09-01", "OPEN", 20, "09:00", " ",
+                    List.of("Sort and organize donations"), false);
+
+            Set<ConstraintViolation<UpdateOpportunityRequest>> violations = validator().validate(request);
+
+            assertThat(violations)
+                    .anyMatch(v -> v.getPropertyPath().toString().equals("endTime"));
+        }
+
+        private Validator validator() {
+            return Validation.buildDefaultValidatorFactory().getValidator();
+        }
+    }
+
+    @Nested
+    @DisplayName("time range validation")
+    class TimeRangeValidation {
+
+        @Test
+        @DisplayName("createOpportunity accepts a valid range where endTime is later than startTime")
+        void createAcceptsValidRange() {
+            CreateOpportunityRequest request = new CreateOpportunityRequest(
+                    OPPORTUNITY_ID, "Beach Cleanup", "Pick up litter", "ENVIRONMENT",
+                    "Seattle, WA", "2026-08-01", 25, "09:00", "12:00",
+                    List.of("Sort and organize donations"), false);
+            when(opportunityRepository.save(any(Opportunity.class)))
+                    .thenAnswer(call -> call.getArgument(0));
+
+            assertThatCode(() -> opportunityService.createOpportunity(ORG_ID, ORG_NAME, request))
+                    .doesNotThrowAnyException();
+        }
+
+        @Test
+        @DisplayName("createOpportunity rejects an endTime equal to startTime")
+        void createRejectsEqualTimes() {
+            CreateOpportunityRequest request = new CreateOpportunityRequest(
+                    OPPORTUNITY_ID, "Beach Cleanup", "Pick up litter", "ENVIRONMENT",
+                    "Seattle, WA", "2026-08-01", 25, "09:00", "09:00",
+                    List.of("Sort and organize donations"), false);
+
+            assertThatThrownBy(() -> opportunityService.createOpportunity(ORG_ID, ORG_NAME, request))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("End time must be later than start time.");
+
+            verifyNoInteractions(opportunityRepository);
+        }
+
+        @Test
+        @DisplayName("createOpportunity rejects an endTime earlier than startTime")
+        void createRejectsInvertedRange() {
+            CreateOpportunityRequest request = new CreateOpportunityRequest(
+                    OPPORTUNITY_ID, "Beach Cleanup", "Pick up litter", "ENVIRONMENT",
+                    "Seattle, WA", "2026-08-01", 25, "12:00", "09:00",
+                    List.of("Sort and organize donations"), false);
+
+            assertThatThrownBy(() -> opportunityService.createOpportunity(ORG_ID, ORG_NAME, request))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("End time must be later than start time.");
+
+            verifyNoInteractions(opportunityRepository);
+        }
+
+        @Test
+        @DisplayName("updateOpportunity accepts a valid range where endTime is later than startTime")
+        void updateAcceptsValidRange() {
+            when(opportunityRepository.findById(OPPORTUNITY_ID))
+                    .thenReturn(Optional.of(opportunity(OPPORTUNITY_ID, "OPEN", 10, 4)));
+            when(opportunityRepository.update(any(Opportunity.class)))
+                    .thenAnswer(call -> call.getArgument(0));
+
+            UpdateOpportunityRequest request = new UpdateOpportunityRequest(
+                    "Beach Cleanup", "Pick up litter", "ENVIRONMENT", "Seattle, WA",
+                    "2026-08-01", "OPEN", 10, "09:00", "12:00",
+                    List.of("Sort and organize donations"), false);
+
+            assertThatCode(() -> opportunityService.updateOpportunity(OPPORTUNITY_ID, request))
+                    .doesNotThrowAnyException();
+        }
+
+        @Test
+        @DisplayName("updateOpportunity rejects an endTime equal to startTime and never reads or writes the record")
+        void updateRejectsEqualTimes() {
+            UpdateOpportunityRequest request = new UpdateOpportunityRequest(
+                    "Beach Cleanup", "Pick up litter", "ENVIRONMENT", "Seattle, WA",
+                    "2026-08-01", "OPEN", 10, "09:00", "09:00",
+                    List.of("Sort and organize donations"), false);
+
+            assertThatThrownBy(() -> opportunityService.updateOpportunity(OPPORTUNITY_ID, request))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("End time must be later than start time.");
+
+            verifyNoInteractions(opportunityRepository);
+        }
+
+        @Test
+        @DisplayName("updateOpportunity rejects an endTime earlier than startTime and never reads or writes the record")
+        void updateRejectsInvertedRange() {
+            UpdateOpportunityRequest request = new UpdateOpportunityRequest(
+                    "Beach Cleanup", "Pick up litter", "ENVIRONMENT", "Seattle, WA",
+                    "2026-08-01", "OPEN", 10, "12:00", "09:00",
+                    List.of("Sort and organize donations"), false);
+
+            assertThatThrownBy(() -> opportunityService.updateOpportunity(OPPORTUNITY_ID, request))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("End time must be later than start time.");
+
+            verifyNoInteractions(opportunityRepository);
         }
     }
 
@@ -584,7 +817,8 @@ class OpportunityServiceTest {
                 opportunity.category(), opportunity.location(), opportunity.date(),
                 opportunity.status(), opportunity.organizationId(), opportunity.organizationName(),
                 opportunity.capacity(), opportunity.registeredCount(), opportunity.availableSpots(),
-                opportunity.time(), opportunity.whatYoullDo(), opportunity.recurring(), imageKey);
+                opportunity.time(), opportunity.startTime(), opportunity.endTime(),
+                opportunity.whatYoullDo(), opportunity.recurring(), imageKey);
     }
 
     private static Opportunity opportunity(
@@ -603,6 +837,6 @@ class OpportunityServiceTest {
                 capacity,
                 registeredCount,
                 capacity - registeredCount,
-                "9:00 AM - 1:00 PM", List.of("Sort and organize donations", "Help set up the distribution area"), false);
+                null, "09:00", "12:00", List.of("Sort and organize donations", "Help set up the distribution area"), false);
     }
 }
