@@ -4,8 +4,10 @@ import com.wevolunteer.backend.dto.CreateOpportunityRequest;
 import com.wevolunteer.backend.dto.UpdateOrganizationRequest;
 import com.wevolunteer.backend.model.Opportunity;
 import com.wevolunteer.backend.model.Organization;
+import com.wevolunteer.backend.model.Registration;
 import com.wevolunteer.backend.service.OpportunityService;
 import com.wevolunteer.backend.service.OrganizationService;
+import com.wevolunteer.backend.service.RegistrationService;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
@@ -24,6 +26,7 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -37,6 +40,9 @@ class OrganizationControllerTest {
 
     @Mock
     private OpportunityService opportunityService;
+
+    @Mock
+    private RegistrationService registrationService;
 
     @Mock
     private Jwt jwt;
@@ -117,6 +123,49 @@ class OrganizationControllerTest {
                 method.getAnnotation(org.springframework.web.bind.annotation.DeleteMapping.class);
 
         assertThat(mapping.value()).containsExactly("/organizations/me/opportunities/{opportunityId}");
+    }
+
+    @Test
+    @DisplayName("getOrganizationOpportunityRegistrations resolves the organization from the JWT "
+            + "subject and delegates to the service")
+    void getOrganizationOpportunityRegistrationsResolvesOrganizationFromJwtSubject() {
+        when(jwt.getSubject()).thenReturn(ORGANIZATION_ID);
+        List<Registration> expected = List.of(registration());
+        when(registrationService.getRegistrationsForOrganizationOpportunity("opp-1", ORGANIZATION_ID))
+                .thenReturn(expected);
+
+        List<Registration> result =
+                organizationController.getOrganizationOpportunityRegistrations(jwt, "opp-1");
+
+        assertThat(result).isSameAs(expected);
+    }
+
+    @Test
+    @DisplayName("getOrganizationOpportunityRegistrations passes the opportunityId and JWT "
+            + "subject through exactly once, with no other service interaction")
+    void getOrganizationOpportunityRegistrationsPassesArgumentsThrough() {
+        when(jwt.getSubject()).thenReturn(ORGANIZATION_ID);
+        when(registrationService.getRegistrationsForOrganizationOpportunity("opp-1", ORGANIZATION_ID))
+                .thenReturn(List.of());
+
+        organizationController.getOrganizationOpportunityRegistrations(jwt, "opp-1");
+
+        verify(registrationService)
+                .getRegistrationsForOrganizationOpportunity("opp-1", ORGANIZATION_ID);
+        verifyNoMoreInteractions(registrationService);
+    }
+
+    @Test
+    @DisplayName("getOrganizationOpportunityRegistrations is mapped to "
+            + "GET /organizations/me/opportunities/{opportunityId}/registrations")
+    void getOrganizationOpportunityRegistrationsIsMappedToExpectedRoute() throws NoSuchMethodException {
+        Method method = OrganizationController.class.getMethod(
+                "getOrganizationOpportunityRegistrations", Jwt.class, String.class);
+        org.springframework.web.bind.annotation.GetMapping mapping =
+                method.getAnnotation(org.springframework.web.bind.annotation.GetMapping.class);
+
+        assertThat(mapping.value())
+                .containsExactly("/organizations/me/opportunities/{opportunityId}/registrations");
     }
 
     @Test
@@ -201,5 +250,20 @@ class OrganizationControllerTest {
                 0,
                 10,
                 null, "09:00", "12:00", List.of("Sort and organize donations", "Help set up the distribution area"), false);
+    }
+
+    private static Registration registration() {
+        return new Registration(
+                "user-1",
+                "opp-1",
+                "Beach Cleanup",
+                "2026-08-01",
+                "Seattle, WA",
+                ORGANIZATION_ID,
+                "Green Earth",
+                "ACTIVE",
+                "Chelsea Pham",
+                "chelsea@example.com",
+                "2026-07-24T10:00:00");
     }
 }

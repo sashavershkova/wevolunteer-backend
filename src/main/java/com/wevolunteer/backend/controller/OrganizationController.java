@@ -2,8 +2,10 @@ package com.wevolunteer.backend.controller;
 
 import com.wevolunteer.backend.model.Opportunity;
 import com.wevolunteer.backend.model.Organization;
+import com.wevolunteer.backend.model.Registration;
 import com.wevolunteer.backend.service.OpportunityService;
 import com.wevolunteer.backend.service.OrganizationService;
+import com.wevolunteer.backend.service.RegistrationService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -27,12 +29,15 @@ public class OrganizationController {
 
     private final OrganizationService organizationService;
     private final OpportunityService opportunityService;
+    private final RegistrationService registrationService;
 
     public OrganizationController(
             OrganizationService organizationService,
-            OpportunityService opportunityService) {
+            OpportunityService opportunityService,
+            RegistrationService registrationService) {
         this.organizationService = organizationService;
         this.opportunityService = opportunityService;
+        this.registrationService = registrationService;
     }
 
     @GetMapping("/organizations/me")
@@ -126,5 +131,14 @@ public class OrganizationController {
             @PathVariable String opportunityId) {
 
         opportunityService.deleteOpportunity(opportunityId, jwt.getSubject());
+    }
+
+    @GetMapping("/organizations/me/opportunities/{opportunityId}/registrations")
+    public List<Registration> getOrganizationOpportunityRegistrations(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable String opportunityId) {
+
+        return registrationService.getRegistrationsForOrganizationOpportunity(
+                opportunityId, jwt.getSubject());
     }
 }

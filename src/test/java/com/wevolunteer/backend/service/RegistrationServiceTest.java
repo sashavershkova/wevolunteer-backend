@@ -3,6 +3,7 @@ package com.wevolunteer.backend.service;
 import com.wevolunteer.backend.dto.RegisterRequest;
 import com.wevolunteer.backend.dto.RegisterResponse;
 import com.wevolunteer.backend.exception.ConflictException;
+import com.wevolunteer.backend.exception.ForbiddenException;
 import com.wevolunteer.backend.exception.NotFoundException;
 import com.wevolunteer.backend.model.Opportunity;
 import com.wevolunteer.backend.model.Registration;
@@ -83,6 +84,75 @@ class RegistrationServiceTest {
             when(registrationRepository.findByUserId(USER_ID)).thenReturn(List.of());
 
             assertThat(registrationService.getRegistrationsByUserId(USER_ID)).isEmpty();
+        }
+    }
+
+    @Nested
+    @DisplayName("getRegistrationsForOrganizationOpportunity")
+    class OrganizationOpportunityRegistrations {
+
+        @Test
+        @DisplayName("owner receives the registrations for their opportunity")
+        void ownerReceivesRegistrations() {
+            when(opportunityRepository.findById(OPPORTUNITY_ID))
+                    .thenReturn(Optional.of(opportunity(10, 3)));
+            List<Registration> expected = List.of(registration(USER_ID, OPPORTUNITY_ID));
+            when(registrationRepository.findByOpportunityId(OPPORTUNITY_ID)).thenReturn(expected);
+
+            assertThat(registrationService
+                    .getRegistrationsForOrganizationOpportunity(OPPORTUNITY_ID, ORG_ID))
+                    .isSameAs(expected);
+        }
+
+        @Test
+        @DisplayName("passes the exact opportunityId through to the registration repository")
+        void passesOpportunityIdThrough() {
+            when(opportunityRepository.findById(OPPORTUNITY_ID))
+                    .thenReturn(Optional.of(opportunity(10, 3)));
+            when(registrationRepository.findByOpportunityId(OPPORTUNITY_ID)).thenReturn(List.of());
+
+            registrationService.getRegistrationsForOrganizationOpportunity(OPPORTUNITY_ID, ORG_ID);
+
+            verify(registrationRepository).findByOpportunityId(OPPORTUNITY_ID);
+        }
+
+        @Test
+        @DisplayName("throws NotFoundException when the opportunity does not exist")
+        void throwsWhenOpportunityMissing() {
+            when(opportunityRepository.findById(OPPORTUNITY_ID)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> registrationService
+                    .getRegistrationsForOrganizationOpportunity(OPPORTUNITY_ID, ORG_ID))
+                    .isInstanceOf(NotFoundException.class)
+                    .hasMessage("Opportunity not found: " + OPPORTUNITY_ID);
+
+            verifyNoInteractions(registrationRepository);
+        }
+
+        @Test
+        @DisplayName("a caller from a different organization receives ForbiddenException")
+        void rejectsNonOwner() {
+            when(opportunityRepository.findById(OPPORTUNITY_ID))
+                    .thenReturn(Optional.of(opportunity(10, 3)));
+
+            assertThatThrownBy(() -> registrationService
+                    .getRegistrationsForOrganizationOpportunity(OPPORTUNITY_ID, "org-99"))
+                    .isInstanceOf(ForbiddenException.class)
+                    .hasMessage("Only the organization that owns this opportunity can view "
+                            + "its registrations.");
+        }
+
+        @Test
+        @DisplayName("does not query the registration repository when ownership fails")
+        void skipsQueryWhenNotOwner() {
+            when(opportunityRepository.findById(OPPORTUNITY_ID))
+                    .thenReturn(Optional.of(opportunity(10, 3)));
+
+            assertThatThrownBy(() -> registrationService
+                    .getRegistrationsForOrganizationOpportunity(OPPORTUNITY_ID, "org-99"))
+                    .isInstanceOf(ForbiddenException.class);
+
+            verify(registrationRepository, never()).findByOpportunityId(anyString());
         }
     }
 

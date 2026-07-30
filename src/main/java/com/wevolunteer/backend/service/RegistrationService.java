@@ -9,6 +9,7 @@ import com.wevolunteer.backend.repository.UserRepository;
 import org.springframework.stereotype.Service;
 import com.wevolunteer.backend.dto.RegisterRequest;
 import com.wevolunteer.backend.dto.RegisterResponse;
+import com.wevolunteer.backend.exception.ForbiddenException;
 import com.wevolunteer.backend.exception.NotFoundException;
 
 import java.util.List;
@@ -35,6 +36,22 @@ public class RegistrationService {
     }
 
     public List<Registration> getRegistrationsByOpportunityId(String opportunityId) {
+        return registrationRepository.findByOpportunityId(opportunityId);
+    }
+
+    public List<Registration> getRegistrationsForOrganizationOpportunity(
+            String opportunityId,
+            String organizationId) {
+
+        Opportunity opportunity = opportunityRepository.findById(opportunityId)
+                .orElseThrow(() ->
+                        new NotFoundException("Opportunity not found: " + opportunityId));
+
+        if (!opportunity.organizationId().equals(organizationId)) {
+            throw new ForbiddenException(
+                    "Only the organization that owns this opportunity can view its registrations.");
+        }
+
         return registrationRepository.findByOpportunityId(opportunityId);
     }
 
