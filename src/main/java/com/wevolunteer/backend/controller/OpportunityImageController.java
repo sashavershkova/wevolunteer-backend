@@ -1,12 +1,16 @@
 package com.wevolunteer.backend.controller;
 
+import com.wevolunteer.backend.dto.AttachOpportunityImageRequest;
 import com.wevolunteer.backend.dto.OpportunityImageUploadUrlRequest;
 import com.wevolunteer.backend.dto.OpportunityImageUploadUrlResponse;
+import com.wevolunteer.backend.model.Opportunity;
 import com.wevolunteer.backend.service.OpportunityImageService;
 import com.wevolunteer.backend.service.OrganizationService;
 import jakarta.validation.Valid;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
@@ -51,6 +55,26 @@ public class OpportunityImageController {
         return opportunityImageService.createUploadUrl(
                 organizationId,
                 request.contentType()
+        );
+    }
+
+    /**
+     * Attaches an already-uploaded image to one of the caller's opportunities.
+     *
+     * <p>Separate from the upload-URL call on purpose: issuing a URL does not prove the browser
+     * finished uploading, so nothing is persisted until the client confirms with this request.
+     * Also used to replace an existing image.
+     */
+    @PatchMapping("/organizations/me/opportunities/{opportunityId}/image")
+    public Opportunity attachOpportunityImage(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable String opportunityId,
+            @Valid @RequestBody AttachOpportunityImageRequest request) {
+
+        return opportunityImageService.attachImage(
+                jwt.getSubject(),
+                opportunityId,
+                request.objectKey()
         );
     }
 }
