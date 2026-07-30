@@ -3,9 +3,11 @@ package com.wevolunteer.backend.controller;
 import com.wevolunteer.backend.dto.AttachOpportunityImageRequest;
 import com.wevolunteer.backend.dto.OpportunityImageUploadUrlRequest;
 import com.wevolunteer.backend.dto.OpportunityImageUploadUrlResponse;
+import com.wevolunteer.backend.dto.OpportunityResponse;
 import com.wevolunteer.backend.exception.NotFoundException;
 import com.wevolunteer.backend.model.Opportunity;
 import com.wevolunteer.backend.service.OpportunityImageService;
+import com.wevolunteer.backend.service.OpportunityResponseMapper;
 import com.wevolunteer.backend.service.OrganizationService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -42,6 +44,9 @@ class OpportunityImageControllerTest {
 
     @Mock
     private OrganizationService organizationService;
+
+    @Mock
+    private OpportunityResponseMapper opportunityResponseMapper;
 
     @Mock
     private Jwt jwt;
@@ -117,10 +122,13 @@ class OpportunityImageControllerTest {
         when(opportunityImageService.attachImage(ORGANIZATION_ID, "opp-1", UPLOAD_KEY))
                 .thenReturn(expected);
 
-        Opportunity result = opportunityImageController.attachOpportunityImage(
+        OpportunityResponse mapped = OpportunityResponse.from(expected, "https://signed");
+        when(opportunityResponseMapper.toResponse(expected)).thenReturn(mapped);
+
+        OpportunityResponse result = opportunityImageController.attachOpportunityImage(
                 jwt, "opp-1", new AttachOpportunityImageRequest(UPLOAD_KEY));
 
-        assertThat(result).isSameAs(expected);
+        assertThat(result).isSameAs(mapped);
         verify(opportunityImageService).attachImage(ORGANIZATION_ID, "opp-1", UPLOAD_KEY);
     }
 

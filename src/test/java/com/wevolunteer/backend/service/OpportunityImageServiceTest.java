@@ -25,6 +25,8 @@ import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
+import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 
@@ -35,6 +37,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -59,6 +62,9 @@ class OpportunityImageServiceTest {
 
     @Mock
     private S3Client s3Client;
+
+    @Mock
+    private PresignedGetObjectRequest presignedGetRequest;
 
     @Mock
     private OpportunityService opportunityService;
@@ -441,6 +447,70 @@ class OpportunityImageServiceTest {
                     "Seattle, WA", "2026-08-01", "OPEN", organizationId, "Other Org",
                     10, 3, 7, null, "09:00", "13:00",
                     List.of("Sort donations"), false, null);
+        }
+    }
+
+    @Nested
+    @DisplayName("resolveImageUrl")
+    class ResolveImageUrl {
+
+        private static final String IMAGE_KEY =
+                "organizations/org-1/opportunities/b616fc40-7856-4c19-993b-dd6a2ee2466a.jpg";
+
+        @Test
+        @DisplayName("returns null when the record has no image, so nothing is signed")
+        void returnsNullWhenNoKey() {
+            assertThat(service.resolveImageUrl(null)).isNull();
+
+            verify(s3Presigner, never()).presignGetObject(any(GetObjectPresignRequest.class));
+        }
+
+        @Test
+        @DisplayName("returns null for a blank key")
+        void returnsNullWhenBlankKey() {
+            assertThat(service.resolveImageUrl("   ")).isNull();
+
+            verify(s3Presigner, never()).presignGetObject(any(GetObjectPresignRequest.class));
+        }
+
+        @Test
+        @DisplayName("signs a URL for the stored key against the configured bucket")
+        void signsUrlForStoredKey() throws Exception {
+            stubGetPresigner();
+
+            String url = service.resolveImageUrl(IMAGE_KEY);
+
+            assertThat(url).isEqualTo("https://example-bucket.s3.amazonaws.com/display");
+
+            ArgumentCaptor<GetObjectPresignRequest> captor =
+                    ArgumentCaptor.forClass(GetObjectPresignRequest.class);
+            verify(s3Presigner).presignGetObject(captor.capture());
+
+            assertThat(captor.getValue().getObjectRequest().bucket()).isEqualTo(BUCKET);
+            assertThat(captor.getValue().getObjectRequest().key()).isEqualTo(IMAGE_KEY);
+        }
+
+        @Test
+        @DisplayName("uses the configured display expiry, not the shorter upload one")
+        void usesDownloadDuration() throws Exception {
+            stubGetPresigner();
+
+            service.resolveImageUrl(IMAGE_KEY);
+
+            ArgumentCaptor<GetObjectPresignRequest> captor =
+                    ArgumentCaptor.forClass(GetObjectPresignRequest.class);
+            verify(s3Presigner).presignGetObject(captor.capture());
+
+            assertThat(captor.getValue().signatureDuration()).isEqualTo(Duration.ofMinutes(60));
+            assertThat(captor.getValue().signatureDuration()).isNotEqualTo(UPLOAD_DURATION);
+        }
+
+        private void stubGetPresigner() throws Exception {
+            when(presignedGetRequest.url())
+                    .thenReturn(URI.create(
+                            "https://example-bucket.s3.amazonaws.com/display").toURL());
+            when(s3Presigner.presignGetObject(any(GetObjectPresignRequest.class)))
+                    .thenReturn(presignedGetRequest);
         }
     }
 }

@@ -1,7 +1,9 @@
 package com.wevolunteer.backend.controller;
 
+import com.wevolunteer.backend.dto.OpportunityResponse;
 import com.wevolunteer.backend.model.Opportunity;
 import com.wevolunteer.backend.model.Registration;
+import com.wevolunteer.backend.service.OpportunityResponseMapper;
 import com.wevolunteer.backend.service.OpportunityService;
 import com.wevolunteer.backend.service.RegistrationService;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -22,17 +24,21 @@ public class OpportunityController {
 
     private final OpportunityService opportunityService;
     private final RegistrationService registrationService;
+    private final OpportunityResponseMapper opportunityResponseMapper;
 
     public OpportunityController(
             OpportunityService opportunityService,
-            RegistrationService registrationService) {
+            RegistrationService registrationService,
+            OpportunityResponseMapper opportunityResponseMapper) {
         this.opportunityService = opportunityService;
         this.registrationService = registrationService;
+        this.opportunityResponseMapper = opportunityResponseMapper;
     }
 
     @GetMapping("/opportunities/{opportunityId}")
-    public Opportunity getOpportunity(@PathVariable String opportunityId) {
-        return opportunityService.getById(opportunityId);
+    public OpportunityResponse getOpportunity(@PathVariable String opportunityId) {
+        return opportunityResponseMapper.toResponse(
+                opportunityService.getById(opportunityId));
     }
 
     @GetMapping("/opportunities/{opportunityId}/registrations")
@@ -43,7 +49,7 @@ public class OpportunityController {
     }
 
     @GetMapping("/opportunities")
-    public List<Opportunity> getOpportunities(
+    public List<OpportunityResponse> getOpportunities(
             @RequestParam(required = false) String category,
             @RequestParam(required = false) String location,
             @RequestParam(required = false) String organizationId,
@@ -64,47 +70,49 @@ public class OpportunityController {
         if (hasDateRange) filterCount++;
 
         if (filterCount > 1) {
-            return opportunityService.getOpenOpportunitiesWithFilters(
+            return opportunityResponseMapper.toResponses(opportunityService.getOpenOpportunitiesWithFilters(
                     category,
                     location,
                     organizationId,
                     startDate,
                     endDate
-            );
+            ));
         }
 
         if (hasCategory) {
-            return opportunityService.getOpportunitiesByCategory(category);
+            return opportunityResponseMapper.toResponses(opportunityService.getOpportunitiesByCategory(category));
         }
 
         if (hasLocation) {
-            return opportunityService.getOpportunitiesByLocation(location);
+            return opportunityResponseMapper.toResponses(opportunityService.getOpportunitiesByLocation(location));
         }
 
         if (hasOrganizationId) {
-            return opportunityService.getOpportunitiesByOrganizationId(organizationId);
+            return opportunityResponseMapper.toResponses(opportunityService.getOpportunitiesByOrganizationId(organizationId));
         }
 
         if (hasDateRange) {
-            return opportunityService.getOpenOpportunitiesByDateRange(startDate, endDate);
+            return opportunityResponseMapper.toResponses(opportunityService.getOpenOpportunitiesByDateRange(startDate, endDate));
         }
 
-        return opportunityService.getOpenOpportunities();
+        return opportunityResponseMapper.toResponses(opportunityService.getOpenOpportunities());
     }
 
     @PatchMapping("/opportunities/{opportunityId}")
-    public Opportunity updateOpportunity(
+    public OpportunityResponse updateOpportunity(
             @PathVariable String opportunityId,
             @Valid @RequestBody UpdateOpportunityRequest request) {
 
-        return opportunityService.updateOpportunity(opportunityId, request);
+        return opportunityResponseMapper.toResponse(
+                opportunityService.updateOpportunity(opportunityId, request));
     }
 
     @PatchMapping("/opportunities/{opportunityId}/close")
-    public Opportunity closeOpportunity(
+    public OpportunityResponse closeOpportunity(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable String opportunityId) {
 
-        return opportunityService.closeOpportunity(opportunityId, jwt.getSubject());
+        return opportunityResponseMapper.toResponse(
+                opportunityService.closeOpportunity(opportunityId, jwt.getSubject()));
     }
 }

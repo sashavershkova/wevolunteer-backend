@@ -11,9 +11,12 @@ import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.S3Exception;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequest;
+import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
+import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 
 import java.util.Locale;
@@ -244,5 +247,35 @@ public class OpportunityImageService {
                 opportunity.recurring(),
                 imageKey
         );
+    }
+
+    /**
+     * Generates a temporary link the browser can render directly.
+     *
+     * <p>The bucket stays private: the URL carries a signature that expires, and nothing is
+     * written back to DynamoDB. The stored key remains the durable value.
+     *
+     * @param imageKey the stored S3 object key, or {@code null} when the record has no image
+     * @return a pre-signed URL, or {@code null} when there is no image to link to
+     */
+    public String resolveImageUrl(String imageKey) {
+        if (imageKey == null || imageKey.isBlank()) {
+            return null;
+        }
+
+        GetObjectRequest getObjectRequest = GetObjectRequest.builder()
+                .bucket(properties.profileImagesBucket())
+                .key(imageKey)
+                .build();
+
+        GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
+                .signatureDuration(properties.downloadUrlDuration())
+                .getObjectRequest(getObjectRequest)
+                .build();
+
+        PresignedGetObjectRequest presignedRequest =
+                s3Presigner.presignGetObject(presignRequest);
+
+        return presignedRequest.url().toString();
     }
 }
