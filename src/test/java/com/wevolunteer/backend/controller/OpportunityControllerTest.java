@@ -1,6 +1,8 @@
 package com.wevolunteer.backend.controller;
 
+import com.wevolunteer.backend.dto.OpportunityResponse;
 import com.wevolunteer.backend.model.Opportunity;
+import com.wevolunteer.backend.service.OpportunityResponseMapper;
 import com.wevolunteer.backend.service.OpportunityService;
 import com.wevolunteer.backend.service.RegistrationService;
 import org.junit.jupiter.api.DisplayName;
@@ -30,6 +32,9 @@ class OpportunityControllerTest {
     private OpportunityService opportunityService;
 
     @Mock
+    private OpportunityResponseMapper opportunityResponseMapper;
+
+    @Mock
     private RegistrationService registrationService;
 
     @Mock
@@ -45,9 +50,12 @@ class OpportunityControllerTest {
         Opportunity closed = opportunity("CLOSED");
         when(opportunityService.closeOpportunity(OPPORTUNITY_ID, ORG_ID)).thenReturn(closed);
 
-        Opportunity result = opportunityController.closeOpportunity(jwt, OPPORTUNITY_ID);
+        OpportunityResponse mapped = OpportunityResponse.from(closed, null);
+        when(opportunityResponseMapper.toResponse(closed)).thenReturn(mapped);
 
-        assertThat(result).isSameAs(closed);
+        OpportunityResponse result = opportunityController.closeOpportunity(jwt, OPPORTUNITY_ID);
+
+        assertThat(result).isSameAs(mapped);
     }
 
     @Test

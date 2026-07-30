@@ -3,6 +3,7 @@ package com.wevolunteer.backend.controller;
 import com.wevolunteer.backend.model.Opportunity;
 import com.wevolunteer.backend.model.Organization;
 import com.wevolunteer.backend.model.Registration;
+import com.wevolunteer.backend.service.OpportunityResponseMapper;
 import com.wevolunteer.backend.service.OpportunityService;
 import com.wevolunteer.backend.service.OrganizationService;
 import com.wevolunteer.backend.service.RegistrationService;
@@ -11,6 +12,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import com.wevolunteer.backend.dto.CreateOrganizationRequest;
+import com.wevolunteer.backend.dto.OpportunityResponse;
 import com.wevolunteer.backend.dto.OrganizationProfileResponse;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -30,14 +32,17 @@ public class OrganizationController {
     private final OrganizationService organizationService;
     private final OpportunityService opportunityService;
     private final RegistrationService registrationService;
+    private final OpportunityResponseMapper opportunityResponseMapper;
 
     public OrganizationController(
             OrganizationService organizationService,
             OpportunityService opportunityService,
-            RegistrationService registrationService) {
+            RegistrationService registrationService,
+            OpportunityResponseMapper opportunityResponseMapper) {
         this.organizationService = organizationService;
         this.opportunityService = opportunityService;
         this.registrationService = registrationService;
+        this.opportunityResponseMapper = opportunityResponseMapper;
     }
 
     @GetMapping("/organizations/me")
@@ -57,25 +62,25 @@ public class OrganizationController {
     }
 
     @GetMapping("/organizations/me/opportunities")
-    public List<Opportunity> getMyOrganizationOpportunities(
+    public List<OpportunityResponse> getMyOrganizationOpportunities(
             @AuthenticationPrincipal Jwt jwt) {
 
-        return opportunityService.getAllOpportunitiesByOrganizationId(jwt.getSubject());
+        return opportunityResponseMapper.toResponses(opportunityService.getAllOpportunitiesByOrganizationId(jwt.getSubject()));
     }
 
     @GetMapping("/organizations/{organizationId}/opportunities")
-    public List<Opportunity> getOrganizationOpportunities(
+    public List<OpportunityResponse> getOrganizationOpportunities(
             @PathVariable String organizationId,
             @RequestParam(required = false) String status) {
 
         if (status != null && !status.isBlank()) {
-            return opportunityService.getOpportunitiesByOrganizationIdAndStatus(
+            return opportunityResponseMapper.toResponses(opportunityService.getOpportunitiesByOrganizationIdAndStatus(
                     organizationId,
                     status
-            );
+            ));
         }
 
-        return opportunityService.getAllOpportunitiesByOrganizationId(organizationId);
+        return opportunityResponseMapper.toResponses(opportunityService.getAllOpportunitiesByOrganizationId(organizationId));
     }
 
     @PostMapping("/organizations")
@@ -111,18 +116,18 @@ public class OrganizationController {
     }
 
     @PostMapping("/organizations/me/opportunities")
-    public Opportunity createOpportunity(
+    public OpportunityResponse createOpportunity(
             @AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody CreateOpportunityRequest request) {
 
         String organizationId = jwt.getSubject();
         Organization organization = organizationService.getById(organizationId);
 
-        return opportunityService.createOpportunity(
+        return opportunityResponseMapper.toResponse(opportunityService.createOpportunity(
                 organizationId,
                 organization.name(),
                 request
-        );
+        ));
     }
 
     @DeleteMapping("/organizations/me/opportunities/{opportunityId}")

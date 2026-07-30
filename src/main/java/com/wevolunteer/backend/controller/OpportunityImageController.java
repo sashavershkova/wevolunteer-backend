@@ -3,8 +3,9 @@ package com.wevolunteer.backend.controller;
 import com.wevolunteer.backend.dto.AttachOpportunityImageRequest;
 import com.wevolunteer.backend.dto.OpportunityImageUploadUrlRequest;
 import com.wevolunteer.backend.dto.OpportunityImageUploadUrlResponse;
-import com.wevolunteer.backend.model.Opportunity;
+import com.wevolunteer.backend.dto.OpportunityResponse;
 import com.wevolunteer.backend.service.OpportunityImageService;
+import com.wevolunteer.backend.service.OpportunityResponseMapper;
 import com.wevolunteer.backend.service.OrganizationService;
 import jakarta.validation.Valid;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -26,13 +27,16 @@ public class OpportunityImageController {
 
     private final OpportunityImageService opportunityImageService;
     private final OrganizationService organizationService;
+    private final OpportunityResponseMapper opportunityResponseMapper;
 
     public OpportunityImageController(
             OpportunityImageService opportunityImageService,
-            OrganizationService organizationService) {
+            OrganizationService organizationService,
+            OpportunityResponseMapper opportunityResponseMapper) {
 
         this.opportunityImageService = opportunityImageService;
         this.organizationService = organizationService;
+        this.opportunityResponseMapper = opportunityResponseMapper;
     }
 
     /**
@@ -66,15 +70,17 @@ public class OpportunityImageController {
      * Also used to replace an existing image.
      */
     @PatchMapping("/organizations/me/opportunities/{opportunityId}/image")
-    public Opportunity attachOpportunityImage(
+    public OpportunityResponse attachOpportunityImage(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable String opportunityId,
             @Valid @RequestBody AttachOpportunityImageRequest request) {
 
-        return opportunityImageService.attachImage(
-                jwt.getSubject(),
-                opportunityId,
-                request.objectKey()
+        return opportunityResponseMapper.toResponse(
+                opportunityImageService.attachImage(
+                        jwt.getSubject(),
+                        opportunityId,
+                        request.objectKey()
+                )
         );
     }
 }

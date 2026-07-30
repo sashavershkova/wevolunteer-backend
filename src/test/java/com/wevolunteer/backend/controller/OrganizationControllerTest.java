@@ -2,9 +2,11 @@ package com.wevolunteer.backend.controller;
 
 import com.wevolunteer.backend.dto.CreateOpportunityRequest;
 import com.wevolunteer.backend.dto.UpdateOrganizationRequest;
+import com.wevolunteer.backend.dto.OpportunityResponse;
 import com.wevolunteer.backend.model.Opportunity;
 import com.wevolunteer.backend.model.Organization;
 import com.wevolunteer.backend.model.Registration;
+import com.wevolunteer.backend.service.OpportunityResponseMapper;
 import com.wevolunteer.backend.service.OpportunityService;
 import com.wevolunteer.backend.service.OrganizationService;
 import com.wevolunteer.backend.service.RegistrationService;
@@ -42,6 +44,9 @@ class OrganizationControllerTest {
     private OpportunityService opportunityService;
 
     @Mock
+    private OpportunityResponseMapper opportunityResponseMapper;
+
+    @Mock
     private RegistrationService registrationService;
 
     @Mock
@@ -57,9 +62,14 @@ class OrganizationControllerTest {
         List<Opportunity> expected = List.of(opportunity());
         when(opportunityService.getAllOpportunitiesByOrganizationId(ORGANIZATION_ID)).thenReturn(expected);
 
-        List<Opportunity> result = organizationController.getMyOrganizationOpportunities(jwt);
+        List<OpportunityResponse> mapped =
+                List.of(OpportunityResponse.from(expected.get(0), "https://signed"));
+        when(opportunityResponseMapper.toResponses(expected)).thenReturn(mapped);
 
-        assertThat(result).isSameAs(expected);
+        List<OpportunityResponse> result =
+                organizationController.getMyOrganizationOpportunities(jwt);
+
+        assertThat(result).isSameAs(mapped);
     }
 
     @Test
@@ -78,11 +88,14 @@ class OrganizationControllerTest {
         when(opportunityService.createOpportunity(ORGANIZATION_ID, "Green Earth", request))
                 .thenReturn(expected);
 
-        Opportunity result = organizationController.createOpportunity(jwt, request);
+        OpportunityResponse mappedResponse = OpportunityResponse.from(expected, null);
+        when(opportunityResponseMapper.toResponse(expected)).thenReturn(mappedResponse);
+
+        OpportunityResponse result = organizationController.createOpportunity(jwt, request);
 
         verify(organizationService).getById(ORGANIZATION_ID);
         verify(opportunityService).createOpportunity(ORGANIZATION_ID, "Green Earth", request);
-        assertThat(result).isSameAs(expected);
+        assertThat(result).isSameAs(mappedResponse);
     }
 
     @Test
