@@ -369,6 +369,57 @@ class RegistrationServiceTest {
         }
     }
 
+    @Nested
+    @DisplayName("cancelAllRegistrationsForOpportunity")
+    class CancelAllRegistrationsForOpportunity {
+
+        @Test
+        @DisplayName("cancels every registration found for the opportunity by userId alone, "
+                + "even when the opportunity-side item carries no date")
+        void cancelsEveryRegistration() {
+            // Opportunity-side items never carry a date attribute in production; date is null
+            // here deliberately to prove the close path no longer depends on it.
+            when(registrationRepository.findByOpportunityId(OPPORTUNITY_ID)).thenReturn(List.of(
+                    registrationWithDate("user-1", OPPORTUNITY_ID, null),
+                    registrationWithDate("user-2", OPPORTUNITY_ID, null)));
+
+            registrationService.cancelAllRegistrationsForOpportunity(OPPORTUNITY_ID);
+
+            verify(registrationRepository).cancelRegistrationForOpportunityClose("user-1", OPPORTUNITY_ID);
+            verify(registrationRepository).cancelRegistrationForOpportunityClose("user-2", OPPORTUNITY_ID);
+            verify(registrationRepository, never())
+                    .cancelRegistration(anyString(), anyString(), anyString());
+            verifyNoInteractions(opportunityRepository);
+        }
+
+        @Test
+        @DisplayName("succeeds without cancelling anything when there are no registrations")
+        void succeedsWithNoRegistrations() {
+            when(registrationRepository.findByOpportunityId(OPPORTUNITY_ID)).thenReturn(List.of());
+
+            registrationService.cancelAllRegistrationsForOpportunity(OPPORTUNITY_ID);
+
+            verify(registrationRepository, never())
+                    .cancelRegistrationForOpportunityClose(anyString(), anyString());
+        }
+
+        @Test
+        @DisplayName("propagates a failure from the repository instead of continuing or swallowing it")
+        void propagatesRepositoryFailure() {
+            when(registrationRepository.findByOpportunityId(OPPORTUNITY_ID)).thenReturn(List.of(
+                    registration("user-1", OPPORTUNITY_ID),
+                    registration("user-2", OPPORTUNITY_ID)));
+            doThrow(new RuntimeException("DynamoDB transaction failed"))
+                    .when(registrationRepository)
+                    .cancelRegistrationForOpportunityClose("user-1", OPPORTUNITY_ID);
+
+            assertThatThrownBy(() ->
+                    registrationService.cancelAllRegistrationsForOpportunity(OPPORTUNITY_ID))
+                    .isInstanceOf(RuntimeException.class)
+                    .hasMessage("DynamoDB transaction failed");
+        }
+    }
+
     private static User user() {
         return new User(USER_ID, "Chelsea Pham", "chelsea@example.com", "VOLUNTEER");
     }
@@ -409,11 +460,15 @@ class RegistrationServiceTest {
     }
 
     private static Registration registration(String userId, String opportunityId) {
+        return registrationWithDate(userId, opportunityId, "2026-08-01");
+    }
+
+    private static Registration registrationWithDate(String userId, String opportunityId, String date) {
         return new Registration(
                 userId,
                 opportunityId,
                 "Beach Cleanup",
-                "2026-08-01",
+                date,
                 "Seattle, WA",
                 ORG_ID,
                 ORG_NAME,

@@ -463,13 +463,14 @@ public class DynamoDbOpportunityRepository implements OpportunityRepository {
                         "PK", AttributeValue.fromS("OPPORTUNITY#" + opportunityId),
                         "SK", AttributeValue.fromS("DETAILS")
                 ))
-                .updateExpression("SET #status = :closedStatus REMOVE GSI1PK, GSI1SK")
+                .updateExpression("SET #status = :closedStatus, registeredCount = :zero REMOVE GSI1PK, GSI1SK")
                 .conditionExpression("attribute_exists(PK) AND attribute_exists(SK)")
                 .expressionAttributeNames(Map.of(
                         "#status", "status"
                 ))
                 .expressionAttributeValues(Map.of(
-                        ":closedStatus", AttributeValue.fromS("CLOSED")
+                        ":closedStatus", AttributeValue.fromS("CLOSED"),
+                        ":zero", AttributeValue.fromN("0")
                 ))
                 .build();
 
@@ -486,8 +487,8 @@ public class DynamoDbOpportunityRepository implements OpportunityRepository {
                 existingOpportunity.organizationId(),
                 existingOpportunity.organizationName(),
                 existingOpportunity.capacity(),
-                existingOpportunity.registeredCount(),
-                existingOpportunity.availableSpots(),
+                0,
+                existingOpportunity.capacity(),
                 existingOpportunity.time(),
                 existingOpportunity.startTime(),
                 existingOpportunity.endTime(),

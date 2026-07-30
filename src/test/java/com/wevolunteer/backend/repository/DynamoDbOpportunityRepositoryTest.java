@@ -14,6 +14,7 @@ import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.GetItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.GetItemResponse;
 import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
+import software.amazon.awssdk.services.dynamodb.model.UpdateItemRequest;
 
 import java.util.HashMap;
 import java.util.List;
@@ -186,6 +187,48 @@ class DynamoDbOpportunityRepositoryTest {
             assertThat(result.get().endTime()).isNull();
             assertThat(result.get().title()).isEqualTo("Beach Cleanup");
         }
+    }
+
+    @Nested
+    @DisplayName("close")
+    class Close {
+
+        @Test
+        @DisplayName("sets status to CLOSED and resets registeredCount to 0 in the same update")
+        void setsClosedStatusAndZeroesRegisteredCount() {
+            when(dynamoDbClient.getItem(any(GetItemRequest.class)))
+                    .thenReturn(GetItemResponse.builder().item(itemWithRegisteredCount(2)).build());
+
+            repository.close(OPPORTUNITY_ID);
+
+            ArgumentCaptor<UpdateItemRequest> captor = ArgumentCaptor.forClass(UpdateItemRequest.class);
+            verify(dynamoDbClient).updateItem(captor.capture());
+
+            assertThat(captor.getValue().updateExpression())
+                    .isEqualTo("SET #status = :closedStatus, registeredCount = :zero REMOVE GSI1PK, GSI1SK");
+            assertThat(captor.getValue().expressionAttributeValues())
+                    .containsEntry(":closedStatus", AttributeValue.fromS("CLOSED"))
+                    .containsEntry(":zero", AttributeValue.fromN("0"));
+        }
+
+        @Test
+        @DisplayName("returns an opportunity with status CLOSED, registeredCount 0 and availableSpots equal to capacity")
+        void returnsZeroedOpportunity() {
+            when(dynamoDbClient.getItem(any(GetItemRequest.class)))
+                    .thenReturn(GetItemResponse.builder().item(itemWithRegisteredCount(2)).build());
+
+            Opportunity result = repository.close(OPPORTUNITY_ID);
+
+            assertThat(result.status()).isEqualTo("CLOSED");
+            assertThat(result.registeredCount()).isZero();
+            assertThat(result.availableSpots()).isEqualTo(result.capacity());
+        }
+    }
+
+    private static Map<String, AttributeValue> itemWithRegisteredCount(int registeredCount) {
+        Map<String, AttributeValue> withCount = new HashMap<>(item(null));
+        withCount.put("registeredCount", AttributeValue.fromN(String.valueOf(registeredCount)));
+        return withCount;
     }
 
     private static Opportunity opportunity(String imageKey) {

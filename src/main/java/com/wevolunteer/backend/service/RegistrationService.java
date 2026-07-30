@@ -122,4 +122,24 @@ public class RegistrationService {
                 opportunity.date()
         );
     }
+
+    /**
+     * Cancels every registration for an opportunity, removing both dual-write DynamoDB items
+     * per registration. Used when an organization closes an opportunity. The opportunity-side
+     * registration item (what findByOpportunityId reads) carries no date attribute, so this uses
+     * cancelRegistrationForOpportunityClose, which looks up each registration's real sort key
+     * instead of reconstructing it. Each cancellation is its own transaction, so a failure
+     * partway through leaves the remaining registrations intact rather than corrupting data;
+     * the caller is responsible for not treating that as a successful close.
+     */
+    public void cancelAllRegistrationsForOpportunity(String opportunityId) {
+        List<Registration> registrations = registrationRepository.findByOpportunityId(opportunityId);
+
+        for (Registration registration : registrations) {
+            registrationRepository.cancelRegistrationForOpportunityClose(
+                    registration.userId(),
+                    opportunityId
+            );
+        }
+    }
 }

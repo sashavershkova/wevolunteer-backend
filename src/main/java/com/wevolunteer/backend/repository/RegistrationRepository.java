@@ -23,4 +23,12 @@ public interface RegistrationRepository {
     );
 
     void cancelRegistration(String userId, String opportunityId, String opportunityDate);
+
+    /**
+     * Cancels a registration when the caller only knows userId and opportunityId (e.g. an
+     * organization closing an opportunity) and cannot supply the registration's original date.
+     * The opportunity-side registration item carries no date attribute, so this looks up the
+     * user-side item's real sort key instead of reconstructing it.
+     */
+    void cancelRegistrationForOpportunityClose(String userId, String opportunityId);
 }

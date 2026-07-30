@@ -1,6 +1,7 @@
 package com.wevolunteer.backend.repository;
 
 import com.wevolunteer.backend.exception.ConflictException;
+import com.wevolunteer.backend.exception.NotFoundException;
 import com.wevolunteer.backend.model.Registration;
 import org.springframework.stereotype.Repository;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
@@ -19,6 +20,7 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Repository
 public class DynamoDbRegistrationRepository implements RegistrationRepository {
@@ -240,4 +242,88 @@ public class DynamoDbRegistrationRepository implements RegistrationRepository {
 
         dynamoDbClient.transactWriteItems(transaction);
         }
+
+    @Override
+    public void cancelRegistrationForOpportunityClose(String userId, String opportunityId) {
+        QueryRequest findUserRegistration = QueryRequest.builder()
+                .tableName(TABLE_NAME)
+                .keyConditionExpression("PK = :pk AND begins_with(SK, :skPrefix)")
+                .filterExpression("opportunityId = :opportunityId")
+                .expressionAttributeValues(Map.of(
+                        ":pk", AttributeValue.fromS("USER#" + userId),
+                        ":skPrefix", AttributeValue.fromS("REGISTRATION#"),
+                        ":opportunityId", AttributeValue.fromS(opportunityId)
+                ))
+                .build();
+
+        QueryResponse response = dynamoDbClient.query(findUserRegistration);
+
+        if (response.items().isEmpty()) {
+            throw new NotFoundException(
+                    "Registration not found for user '" + userId + "' and opportunity '" + opportunityId + "'.");
+        }
+
+        String userRegistrationSortKey = response.items().get(0).get("SK").s();
+
+        Update decrementRegisteredCount = Update.builder()
+                .tableName(TABLE_NAME)
+                .key(Map.of(
+                        "PK", AttributeValue.fromS("OPPORTUNITY#" + opportunityId),
+                        "SK", AttributeValue.fromS("DETAILS")
+                ))
+                .updateExpression("SET registeredCount = registeredCount - :one")
+                .conditionExpression("registeredCount > :zero")
+                .expressionAttributeValues(Map.of(
+                        ":one", AttributeValue.fromN("1"),
+                        ":zero", AttributeValue.fromN("0")
+                ))
+                .build();
+
+        Delete deleteUserRegistration = Delete.builder()
+                .tableName(TABLE_NAME)
+                .key(Map.of(
+                        "PK", AttributeValue.fromS("USER#" + userId),
+                        "SK", AttributeValue.fromS(userRegistrationSortKey)
+                ))
+                .conditionExpression("attribute_exists(PK) AND attribute_exists(SK)")
+                .build();
+
+        Delete deleteOpportunityRegistration = Delete.builder()
+                .tableName(TABLE_NAME)
+                .key(Map.of(
+                        "PK", AttributeValue.fromS("OPPORTUNITY#" + opportunityId),
+                        "SK", AttributeValue.fromS("REGISTRATION#" + userId)
+                ))
+                .conditionExpression("attribute_exists(PK) AND attribute_exists(SK)")
+                .build();
+
+        TransactWriteItemsRequest transaction = TransactWriteItemsRequest.builder()
+                .transactItems(
+                        TransactWriteItem.builder().update(decrementRegisteredCount).build(),
+                        TransactWriteItem.builder().delete(deleteUserRegistration).build(),
+                        TransactWriteItem.builder().delete(deleteOpportunityRegistration).build()
+                )
+                .build();
+
+        try {
+            dynamoDbClient.transactWriteItems(transaction);
+        } catch (TransactionCanceledException e) {
+            throw new ConflictException(
+                    "Unable to cancel registration for user '" + userId + "' and opportunity '"
+                            + opportunityId + "' while closing the opportunity: "
+                            + describeCancellationReasons(e));
+        }
+    }
+
+    private String describeCancellationReasons(TransactionCanceledException e) {
+        List<CancellationReason> reasons = e.cancellationReasons();
+
+        if (reasons == null || reasons.isEmpty()) {
+            return e.getMessage();
+        }
+
+        return reasons.stream()
+                .map(reason -> reason.code() == null ? "None" : reason.code())
+                .collect(Collectors.joining(", "));
+    }
 }

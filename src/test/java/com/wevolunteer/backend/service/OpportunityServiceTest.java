@@ -33,6 +33,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -50,6 +51,9 @@ class OpportunityServiceTest {
 
     @Mock
     private OpportunityRepository opportunityRepository;
+
+    @Mock
+    private RegistrationService registrationService;
 
     @InjectMocks
     private OpportunityService opportunityService;
@@ -244,6 +248,79 @@ class OpportunityServiceTest {
             assertThat(opportunityService.closeOpportunity(OPPORTUNITY_ID, ORG_ID))
                     .isSameAs(closed);
             verify(opportunityRepository, times(1)).close(OPPORTUNITY_ID);
+        }
+
+        @Test
+        @DisplayName("cancels all registrations for the opportunity before closing it")
+        void cancelsRegistrationsBeforeClosing() {
+            when(opportunityRepository.findById(OPPORTUNITY_ID))
+                    .thenReturn(Optional.of(opportunity(OPPORTUNITY_ID, "OPEN", 20, 2)));
+            when(opportunityRepository.close(OPPORTUNITY_ID))
+                    .thenReturn(opportunity(OPPORTUNITY_ID, "CLOSED", 20, 0));
+
+            opportunityService.closeOpportunity(OPPORTUNITY_ID, ORG_ID);
+
+            InOrder inOrder = inOrder(registrationService, opportunityRepository);
+            inOrder.verify(registrationService).cancelAllRegistrationsForOpportunity(OPPORTUNITY_ID);
+            inOrder.verify(opportunityRepository).close(OPPORTUNITY_ID);
+        }
+
+        @Test
+        @DisplayName("returns an opportunity with registeredCount reset to 0")
+        void returnsZeroedRegisteredCount() {
+            when(opportunityRepository.findById(OPPORTUNITY_ID))
+                    .thenReturn(Optional.of(opportunity(OPPORTUNITY_ID, "OPEN", 20, 2)));
+            when(opportunityRepository.close(OPPORTUNITY_ID))
+                    .thenReturn(opportunity(OPPORTUNITY_ID, "CLOSED", 20, 0));
+
+            Opportunity result = opportunityService.closeOpportunity(OPPORTUNITY_ID, ORG_ID);
+
+            assertThat(result.registeredCount()).isZero();
+        }
+
+        @Test
+        @DisplayName("succeeds when the opportunity has no registrations to cancel")
+        void succeedsWithNoRegistrations() {
+            when(opportunityRepository.findById(OPPORTUNITY_ID))
+                    .thenReturn(Optional.of(opportunity(OPPORTUNITY_ID, "OPEN", 20, 0)));
+            when(opportunityRepository.close(OPPORTUNITY_ID))
+                    .thenReturn(opportunity(OPPORTUNITY_ID, "CLOSED", 20, 0));
+
+            assertThatCode(() -> opportunityService.closeOpportunity(OPPORTUNITY_ID, ORG_ID))
+                    .doesNotThrowAnyException();
+
+            verify(registrationService).cancelAllRegistrationsForOpportunity(OPPORTUNITY_ID);
+            verify(opportunityRepository).close(OPPORTUNITY_ID);
+        }
+
+        @Test
+        @DisplayName("does not attempt registration cleanup when ownership validation fails")
+        void skipsCleanupWhenNotOwner() {
+            when(opportunityRepository.findById(OPPORTUNITY_ID))
+                    .thenReturn(Optional.of(opportunity(OPPORTUNITY_ID, "OPEN", 10, 3)));
+
+            assertThatThrownBy(() ->
+                    opportunityService.closeOpportunity(OPPORTUNITY_ID, "org-99"))
+                    .isInstanceOf(ForbiddenException.class);
+
+            verifyNoInteractions(registrationService);
+        }
+
+        @Test
+        @DisplayName("propagates a registration cleanup failure and never closes the opportunity")
+        void propagatesCleanupFailureWithoutClosing() {
+            when(opportunityRepository.findById(OPPORTUNITY_ID))
+                    .thenReturn(Optional.of(opportunity(OPPORTUNITY_ID, "OPEN", 20, 2)));
+            doThrow(new RuntimeException("DynamoDB transaction failed"))
+                    .when(registrationService)
+                    .cancelAllRegistrationsForOpportunity(OPPORTUNITY_ID);
+
+            assertThatThrownBy(() ->
+                    opportunityService.closeOpportunity(OPPORTUNITY_ID, ORG_ID))
+                    .isInstanceOf(RuntimeException.class)
+                    .hasMessage("DynamoDB transaction failed");
+
+            verify(opportunityRepository, never()).close(anyString());
         }
     }
 

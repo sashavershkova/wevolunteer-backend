@@ -18,9 +18,13 @@ import java.util.List;
 public class OpportunityService {
 
     private final OpportunityRepository opportunityRepository;
+    private final RegistrationService registrationService;
 
-    public OpportunityService(OpportunityRepository opportunityRepository) {
+    public OpportunityService(
+            OpportunityRepository opportunityRepository,
+            RegistrationService registrationService) {
         this.opportunityRepository = opportunityRepository;
+        this.registrationService = registrationService;
     }
 
     public Opportunity getById(String opportunityId) {
@@ -187,6 +191,10 @@ public class OpportunityService {
             throw new ForbiddenException(
                     "Only the organization that owns this opportunity can close it.");
         }
+
+        // Cancel registrations before flipping status so a cleanup failure leaves the
+        // opportunity OPEN instead of silently reporting a successful close.
+        registrationService.cancelAllRegistrationsForOpportunity(opportunityId);
 
         return opportunityRepository.close(opportunityId);
     }
