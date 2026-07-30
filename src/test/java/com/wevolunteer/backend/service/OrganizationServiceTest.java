@@ -315,6 +315,7 @@ class OrganizationServiceTest {
                 "ACTIVE",
                 "Volunteer Name",
                 "volunteer@example.com",
-                "2026-07-24T10:00:00");
+                "2026-07-24T10:00:00",
+                null, null, null);
     }
 }

@@ -58,13 +58,65 @@ class RegistrationServiceTest {
     class ReadQueries {
 
         @Test
-        @DisplayName("getRegistrationsByUserId delegates to the repository")
-        void delegatesByUserId() {
-            List<Registration> expected = List.of(registration(USER_ID, OPPORTUNITY_ID));
-            when(registrationRepository.findByUserId(USER_ID)).thenReturn(expected);
+        @DisplayName("getRegistrationsByUserId enriches a registration with its opportunity's structured time")
+        void enrichesWithStructuredTime() {
+            when(registrationRepository.findByUserId(USER_ID))
+                    .thenReturn(List.of(registration(USER_ID, OPPORTUNITY_ID)));
+            when(opportunityRepository.findById(OPPORTUNITY_ID))
+                    .thenReturn(Optional.of(opportunityWithTime(null, "09:00", "12:00")));
 
-            assertThat(registrationService.getRegistrationsByUserId(USER_ID)).isSameAs(expected);
-            verifyNoInteractions(userRepository, opportunityRepository);
+            Registration enriched = registrationService.getRegistrationsByUserId(USER_ID).get(0);
+
+            assertThat(enriched.startTime()).isEqualTo("09:00");
+            assertThat(enriched.endTime()).isEqualTo("12:00");
+            assertThat(enriched.time()).isNull();
+        }
+
+        @Test
+        @DisplayName("getRegistrationsByUserId enriches a registration with the opportunity's legacy time when startTime/endTime are absent")
+        void enrichesWithLegacyTime() {
+            when(registrationRepository.findByUserId(USER_ID))
+                    .thenReturn(List.of(registration(USER_ID, OPPORTUNITY_ID)));
+            when(opportunityRepository.findById(OPPORTUNITY_ID))
+                    .thenReturn(Optional.of(opportunityWithTime("9:00 AM - 12:00 PM", null, null)));
+
+            Registration enriched = registrationService.getRegistrationsByUserId(USER_ID).get(0);
+
+            assertThat(enriched.time()).isEqualTo("9:00 AM - 12:00 PM");
+            assertThat(enriched.startTime()).isNull();
+            assertThat(enriched.endTime()).isNull();
+        }
+
+        @Test
+        @DisplayName("getRegistrationsByUserId returns null time fields when the opportunity has no time information")
+        void enrichesWithNoTime() {
+            when(registrationRepository.findByUserId(USER_ID))
+                    .thenReturn(List.of(registration(USER_ID, OPPORTUNITY_ID)));
+            when(opportunityRepository.findById(OPPORTUNITY_ID))
+                    .thenReturn(Optional.of(opportunityWithTime(null, null, null)));
+
+            Registration enriched = registrationService.getRegistrationsByUserId(USER_ID).get(0);
+
+            assertThat(enriched.time()).isNull();
+            assertThat(enriched.startTime()).isNull();
+            assertThat(enriched.endTime()).isNull();
+        }
+
+        @Test
+        @DisplayName("getRegistrationsByUserId still returns a stale registration with null time fields when its opportunity is gone")
+        void returnsRegistrationWithNullTimeWhenOpportunityMissing() {
+            when(registrationRepository.findByUserId(USER_ID))
+                    .thenReturn(List.of(registration(USER_ID, OPPORTUNITY_ID)));
+            when(opportunityRepository.findById(OPPORTUNITY_ID)).thenReturn(Optional.empty());
+
+            List<Registration> result = registrationService.getRegistrationsByUserId(USER_ID);
+
+            assertThat(result).hasSize(1);
+            Registration enriched = result.get(0);
+            assertThat(enriched.opportunityId()).isEqualTo(OPPORTUNITY_ID);
+            assertThat(enriched.time()).isNull();
+            assertThat(enriched.startTime()).isNull();
+            assertThat(enriched.endTime()).isNull();
         }
 
         @Test
@@ -79,11 +131,12 @@ class RegistrationServiceTest {
         }
 
         @Test
-        @DisplayName("returns an empty list when the user has no registrations")
+        @DisplayName("returns an empty list without querying opportunities when the user has no registrations")
         void returnsEmptyList() {
             when(registrationRepository.findByUserId(USER_ID)).thenReturn(List.of());
 
             assertThat(registrationService.getRegistrationsByUserId(USER_ID)).isEmpty();
+            verifyNoInteractions(opportunityRepository);
         }
     }
 
@@ -337,6 +390,24 @@ class RegistrationServiceTest {
                 null, "09:00", "12:00", List.of("Sort and organize donations", "Help set up the distribution area"), false);
     }
 
+    private static Opportunity opportunityWithTime(String time, String startTime, String endTime) {
+        return new Opportunity(
+                OPPORTUNITY_ID,
+                "Beach Cleanup",
+                "Pick up litter",
+                "ENVIRONMENT",
+                "Seattle, WA",
+                "2026-08-01",
+                "OPEN",
+                ORG_ID,
+                ORG_NAME,
+                10,
+                3,
+                7,
+                time, startTime, endTime,
+                List.of("Sort and organize donations", "Help set up the distribution area"), false);
+    }
+
     private static Registration registration(String userId, String opportunityId) {
         return new Registration(
                 userId,
@@ -349,6 +420,7 @@ class RegistrationServiceTest {
                 "ACTIVE",
                 "Chelsea Pham",
                 "chelsea@example.com",
-                "2026-07-24T10:00:00");
+                "2026-07-24T10:00:00",
+                null, null, null);
     }
 }

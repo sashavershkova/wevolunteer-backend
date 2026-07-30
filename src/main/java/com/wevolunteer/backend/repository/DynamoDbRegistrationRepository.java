@@ -181,7 +181,10 @@ public class DynamoDbRegistrationRepository implements RegistrationRepository {
                         getStringOrNull(item, "registrationStatus"),
                         getStringOrNull(item, "volunteerName"),
                         getStringOrNull(item, "email"),
-                        getStringOrNull(item, "registeredAt")
+                        getStringOrNull(item, "registeredAt"),
+                        null,
+                        null,
+                        null
                 );
         }
 

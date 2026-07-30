@@ -264,6 +264,7 @@ class OrganizationControllerTest {
                 "ACTIVE",
                 "Chelsea Pham",
                 "chelsea@example.com",
-                "2026-07-24T10:00:00");
+                "2026-07-24T10:00:00",
+                null, null, null);
     }
 }

@@ -32,7 +32,32 @@ public class RegistrationService {
     }
 
     public List<Registration> getRegistrationsByUserId(String userId) {
-        return registrationRepository.findByUserId(userId);
+        return registrationRepository.findByUserId(userId).stream()
+                .map(this::withOpportunityTime)
+                .toList();
+    }
+
+    private Registration withOpportunityTime(Registration registration) {
+        Opportunity opportunity = opportunityRepository
+                .findById(registration.opportunityId())
+                .orElse(null);
+
+        return new Registration(
+                registration.userId(),
+                registration.opportunityId(),
+                registration.title(),
+                registration.date(),
+                registration.location(),
+                registration.organizationId(),
+                registration.organizationName(),
+                registration.registrationStatus(),
+                registration.volunteerName(),
+                registration.email(),
+                registration.registeredAt(),
+                opportunity != null ? opportunity.time() : null,
+                opportunity != null ? opportunity.startTime() : null,
+                opportunity != null ? opportunity.endTime() : null
+        );
     }
 
     public List<Registration> getRegistrationsByOpportunityId(String opportunityId) {

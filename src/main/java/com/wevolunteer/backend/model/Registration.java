@@ -11,5 +11,8 @@ public record Registration(
         String registrationStatus,
         String volunteerName,
         String email,
-        String registeredAt
+        String registeredAt,
+        String time,
+        String startTime,
+        String endTime
 ) {}
