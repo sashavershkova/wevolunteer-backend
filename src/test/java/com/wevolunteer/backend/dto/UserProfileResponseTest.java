@@ -55,6 +55,28 @@ class UserProfileResponseTest {
     }
 
     @Nested
+    @DisplayName("profileImageUrl")
+    class ProfileImageUrl {
+
+        @Test
+        @DisplayName("carries the supplied display URL")
+        void carriesDisplayUrl() {
+            User user = new User(USER_ID, "Chelsea Pham", "chelsea@example.com", "VOLUNTEER", IMAGE_KEY);
+
+            assertThat(UserProfileResponse.from(user, "https://signed").profileImageUrl())
+                    .isEqualTo("https://signed");
+        }
+
+        @Test
+        @DisplayName("is null when no URL is supplied, so the placeholder shows")
+        void isNullWithoutUrl() {
+            User user = new User(USER_ID, "Chelsea Pham", "chelsea@example.com", "VOLUNTEER");
+
+            assertThat(UserProfileResponse.from(user).profileImageUrl()).isNull();
+        }
+    }
+
+    @Nested
     @DisplayName("serialization")
     class Serialization {
 

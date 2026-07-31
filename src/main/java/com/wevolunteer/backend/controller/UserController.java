@@ -5,6 +5,7 @@ import com.wevolunteer.backend.dto.UserProfileResponse;
 import com.wevolunteer.backend.dto.UpdateUserRequest;
 import com.wevolunteer.backend.model.Registration;
 import com.wevolunteer.backend.service.RegistrationService;
+import com.wevolunteer.backend.service.ProfileResponseMapper;
 import com.wevolunteer.backend.service.UserService;
 import jakarta.validation.Valid;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -24,18 +25,21 @@ public class UserController {
 
     private final UserService userService;
     private final RegistrationService registrationService;
+    private final ProfileResponseMapper profileResponseMapper;
 
     public UserController(
             UserService userService,
-            RegistrationService registrationService
+            RegistrationService registrationService,
+            ProfileResponseMapper profileResponseMapper
     ) {
         this.userService = userService;
         this.registrationService = registrationService;
+        this.profileResponseMapper = profileResponseMapper;
     }
 
     @GetMapping("/users/{userId}")
     public UserProfileResponse getUser(@PathVariable String userId) {
-        return UserProfileResponse.from(userService.getById(userId));
+        return profileResponseMapper.toResponse(userService.getById(userId));
     }
 
     @GetMapping("/users/{userId}/registrations")
@@ -48,7 +52,7 @@ public class UserController {
             @AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody CreateUserRequest request
     ) {
-        return UserProfileResponse.from(
+        return profileResponseMapper.toResponse(
                 userService.createUser(jwt.getSubject(), request));
     }
 
@@ -56,7 +60,7 @@ public class UserController {
     public UserProfileResponse getCurrentUser(
             @AuthenticationPrincipal Jwt jwt
     ) {
-        return UserProfileResponse.from(userService.getById(jwt.getSubject()));
+        return profileResponseMapper.toResponse(userService.getById(jwt.getSubject()));
     }
 
     @PatchMapping("/users/{userId}")
@@ -64,7 +68,7 @@ public class UserController {
             @PathVariable String userId,
             @Valid @RequestBody UpdateUserRequest request
     ) {
-        return UserProfileResponse.from(userService.updateUser(userId, request));
+        return profileResponseMapper.toResponse(userService.updateUser(userId, request));
     }
 
     @DeleteMapping("/users/{userId}")
