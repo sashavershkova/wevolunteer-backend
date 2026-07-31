@@ -19,8 +19,6 @@ import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignReques
 import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 
-import java.util.Locale;
-import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
@@ -33,26 +31,6 @@ import java.util.regex.Pattern;
  */
 @Service
 public class OpportunityImageService {
-
-    /** Content types accepted for upload, mapped to the file extension used in the object key. */
-    private static final Map<String, String> ALLOWED_CONTENT_TYPES = Map.of(
-            "image/jpeg", "jpg",
-            "image/png", "png",
-            "image/webp", "webp");
-
-    /** Listed explicitly so the error message has a stable order. */
-    private static final String ALLOWED_CONTENT_TYPES_MESSAGE =
-            "image/jpeg, image/png, image/webp";
-
-    /**
-     * Largest image accepted when attaching. A pre-signed PUT cannot enforce a size limit — the
-     * signature covers the key and content type, not the body length — so the limit is applied
-     * here, from the object's own metadata, after the upload has happened.
-     */
-    private static final long MAX_IMAGE_BYTES = 5L * 1024 * 1024;
-
-    private static final String UUID_REGEX =
-            "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}";
 
     private final S3Presigner s3Presigner;
     private final S3Client s3Client;
@@ -78,14 +56,8 @@ public class OpportunityImageService {
             String organizationId,
             String contentType) {
 
-        String normalizedContentType = normalize(contentType);
-        String extension = ALLOWED_CONTENT_TYPES.get(normalizedContentType);
-
-        if (extension == null) {
-            throw new IllegalArgumentException(
-                    "Unsupported image type. Allowed types are: "
-                            + ALLOWED_CONTENT_TYPES_MESSAGE + ".");
-        }
+        String extension = ImageContentTypes.extensionForUpload(contentType);
+        String normalizedContentType = ImageContentTypes.normalize(contentType);
 
         String objectKey = buildObjectKey(organizationId, extension);
 
@@ -120,23 +92,6 @@ public class OpportunityImageService {
         return "organizations/" + organizationId
                 + "/opportunities/" + UUID.randomUUID()
                 + "." + extension;
-    }
-
-    /**
-     * Lower-cases the media type and drops any parameters, so that "IMAGE/JPEG" and
-     * "image/jpeg; charset=utf-8" are both recognised.
-     */
-    private String normalize(String contentType) {
-        if (contentType == null) {
-            return "";
-        }
-
-        int parameterStart = contentType.indexOf(';');
-        String mediaType = parameterStart >= 0
-                ? contentType.substring(0, parameterStart)
-                : contentType;
-
-        return mediaType.trim().toLowerCase(Locale.ROOT);
     }
 
     /**
@@ -176,7 +131,7 @@ public class OpportunityImageService {
      */
     private void requireOwnedKey(String organizationId, String objectKey) {
         String expected = "organizations/" + Pattern.quote(organizationId)
-                + "/opportunities/" + UUID_REGEX + "\\.(jpg|png|webp)";
+                + "/opportunities/" + ImageContentTypes.UUID_REGEX + "\\.(jpg|png|webp)";
 
         if (objectKey == null || !objectKey.matches(expected)) {
             throw new ForbiddenException(
@@ -210,20 +165,8 @@ public class OpportunityImageService {
     }
 
     private void requireAcceptableMetadata(HeadObjectResponse metadata) {
-        String contentType = normalize(metadata.contentType());
-
-        if (!ALLOWED_CONTENT_TYPES.containsKey(contentType)) {
-            throw new IllegalArgumentException(
-                    "The uploaded file is not a supported image. Allowed types are: "
-                            + ALLOWED_CONTENT_TYPES_MESSAGE + ".");
-        }
-
-        Long contentLength = metadata.contentLength();
-
-        if (contentLength != null && contentLength > MAX_IMAGE_BYTES) {
-            throw new IllegalArgumentException(
-                    "The uploaded image is larger than the 5 MB limit.");
-        }
+        ImageContentTypes.requireAllowedStoredType(metadata.contentType());
+        ImageContentTypes.requireWithinSizeLimit(metadata.contentLength());
     }
 
     private Opportunity withImageKey(Opportunity opportunity, String imageKey) {

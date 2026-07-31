@@ -5,6 +5,7 @@ import com.wevolunteer.backend.model.Organization;
 import com.wevolunteer.backend.model.Registration;
 import com.wevolunteer.backend.service.OpportunityResponseMapper;
 import com.wevolunteer.backend.service.OpportunityService;
+import com.wevolunteer.backend.service.ProfileResponseMapper;
 import com.wevolunteer.backend.service.OrganizationService;
 import com.wevolunteer.backend.service.RegistrationService;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -33,23 +34,26 @@ public class OrganizationController {
     private final OpportunityService opportunityService;
     private final RegistrationService registrationService;
     private final OpportunityResponseMapper opportunityResponseMapper;
+    private final ProfileResponseMapper profileResponseMapper;
 
     public OrganizationController(
             OrganizationService organizationService,
             OpportunityService opportunityService,
             RegistrationService registrationService,
-            OpportunityResponseMapper opportunityResponseMapper) {
+            OpportunityResponseMapper opportunityResponseMapper,
+            ProfileResponseMapper profileResponseMapper) {
         this.organizationService = organizationService;
         this.opportunityService = opportunityService;
         this.registrationService = registrationService;
         this.opportunityResponseMapper = opportunityResponseMapper;
+        this.profileResponseMapper = profileResponseMapper;
     }
 
     @GetMapping("/organizations/me")
     public OrganizationProfileResponse getCurrentOrganization(
             @AuthenticationPrincipal Jwt jwt) {
 
-        return OrganizationProfileResponse.from(
+        return profileResponseMapper.toResponse(
                 organizationService.getById(jwt.getSubject()));
     }
 
@@ -57,7 +61,7 @@ public class OrganizationController {
     public OrganizationProfileResponse getOrganization(
             @PathVariable String organizationId) {
 
-        return OrganizationProfileResponse.from(
+        return profileResponseMapper.toResponse(
                 organizationService.getById(organizationId));
     }
 
@@ -88,7 +92,7 @@ public class OrganizationController {
             @AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody CreateOrganizationRequest request) {
 
-        return OrganizationProfileResponse.from(
+        return profileResponseMapper.toResponse(
                 organizationService.createOrganization(jwt.getSubject(), request));
     }
 
@@ -97,7 +101,7 @@ public class OrganizationController {
             @AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody UpdateOrganizationRequest request) {
 
-        return OrganizationProfileResponse.from(
+        return profileResponseMapper.toResponse(
                 organizationService.updateOrganization(jwt.getSubject(), request));
     }
 
@@ -106,7 +110,7 @@ public class OrganizationController {
             @PathVariable String organizationId,
             @Valid @RequestBody UpdateOrganizationRequest request) {
 
-        return OrganizationProfileResponse.from(
+        return profileResponseMapper.toResponse(
                 organizationService.updateOrganization(organizationId, request));
     }
 

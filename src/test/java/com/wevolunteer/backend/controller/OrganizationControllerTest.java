@@ -3,11 +3,13 @@ package com.wevolunteer.backend.controller;
 import com.wevolunteer.backend.dto.CreateOpportunityRequest;
 import com.wevolunteer.backend.dto.UpdateOrganizationRequest;
 import com.wevolunteer.backend.dto.OpportunityResponse;
+import com.wevolunteer.backend.dto.OrganizationProfileResponse;
 import com.wevolunteer.backend.model.Opportunity;
 import com.wevolunteer.backend.model.Organization;
 import com.wevolunteer.backend.model.Registration;
 import com.wevolunteer.backend.service.OpportunityResponseMapper;
 import com.wevolunteer.backend.service.OpportunityService;
+import com.wevolunteer.backend.service.ProfileResponseMapper;
 import com.wevolunteer.backend.service.OrganizationService;
 import com.wevolunteer.backend.service.RegistrationService;
 import jakarta.validation.ConstraintViolation;
@@ -45,6 +47,9 @@ class OrganizationControllerTest {
 
     @Mock
     private OpportunityResponseMapper opportunityResponseMapper;
+
+    @Mock
+    private ProfileResponseMapper profileResponseMapper;
 
     @Mock
     private RegistrationService registrationService;
@@ -191,6 +196,8 @@ class OrganizationControllerTest {
                 ORGANIZATION_ID, "New Name", "New description", "new@example.com",
                 "https://new.example.com");
         when(organizationService.updateOrganization(ORGANIZATION_ID, request)).thenReturn(updated);
+        when(profileResponseMapper.toResponse(updated))
+                .thenReturn(OrganizationProfileResponse.from(updated, null));
 
         var result = organizationController.updateCurrentOrganization(jwt, request);
 
