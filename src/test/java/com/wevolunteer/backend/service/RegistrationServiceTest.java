@@ -8,6 +8,9 @@ import com.wevolunteer.backend.exception.NotFoundException;
 import com.wevolunteer.backend.model.Opportunity;
 import com.wevolunteer.backend.model.Registration;
 import com.wevolunteer.backend.model.User;
+import com.wevolunteer.backend.notification.NotificationEvent;
+import com.wevolunteer.backend.notification.NotificationEventType;
+import com.wevolunteer.backend.notification.NotificationPublisher;
 import com.wevolunteer.backend.repository.OpportunityRepository;
 import com.wevolunteer.backend.repository.RegistrationRepository;
 import com.wevolunteer.backend.repository.UserRepository;
@@ -15,10 +18,13 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -27,6 +33,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -49,6 +56,9 @@ class RegistrationServiceTest {
 
     @Mock
     private OpportunityRepository opportunityRepository;
+
+    @Mock
+    private NotificationPublisher notificationPublisher;
 
     @InjectMocks
     private RegistrationService registrationService;
@@ -235,6 +245,68 @@ class RegistrationServiceTest {
         }
 
         @Test
+        @DisplayName("publishes exactly one REGISTRATION_CREATED event built from the current user and opportunity")
+        void publishesRegistrationCreatedEvent() {
+            when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user()));
+            when(opportunityRepository.findById(OPPORTUNITY_ID))
+                    .thenReturn(Optional.of(opportunity(10, 3)));
+
+            Instant before = Instant.now();
+            registrationService.register(new RegisterRequest(USER_ID, OPPORTUNITY_ID));
+            Instant after = Instant.now();
+
+            ArgumentCaptor<NotificationEvent> captor = ArgumentCaptor.forClass(NotificationEvent.class);
+            verify(notificationPublisher).publish(captor.capture());
+
+            NotificationEvent event = captor.getValue();
+            assertThat(event.eventType()).isEqualTo(NotificationEventType.REGISTRATION_CREATED);
+            assertThat(event.userId()).isEqualTo(USER_ID);
+            assertThat(event.volunteerName()).isEqualTo("Chelsea Pham");
+            assertThat(event.volunteerEmail()).isEqualTo("chelsea@example.com");
+            assertThat(event.opportunityId()).isEqualTo(OPPORTUNITY_ID);
+            assertThat(event.opportunityTitle()).isEqualTo("Beach Cleanup");
+            assertThat(event.opportunityDate()).isEqualTo("2026-08-01");
+            assertThat(event.organizationId()).isEqualTo(ORG_ID);
+            assertThat(event.organizationName()).isEqualTo(ORG_NAME);
+            assertThat(event.timestamp()).isNotNull().isBetween(before, after);
+        }
+
+        @Test
+        @DisplayName("publishes the notification only after the registration repository call succeeds")
+        void publishesAfterRepositoryCall() {
+            when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user()));
+            when(opportunityRepository.findById(OPPORTUNITY_ID))
+                    .thenReturn(Optional.of(opportunity(10, 3)));
+
+            registrationService.register(new RegisterRequest(USER_ID, OPPORTUNITY_ID));
+
+            InOrder inOrder = inOrder(registrationRepository, notificationPublisher);
+            inOrder.verify(registrationRepository).registerUserForOpportunity(
+                    anyString(), anyString(), anyString(), anyString(), anyString(),
+                    anyString(), anyString(), anyString(), anyString());
+            inOrder.verify(notificationPublisher).publish(any(NotificationEvent.class));
+        }
+
+        @Test
+        @DisplayName("does not publish a notification when the repository rejects the registration")
+        void doesNotPublishWhenRepositoryRejectsRegistration() {
+            when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user()));
+            when(opportunityRepository.findById(OPPORTUNITY_ID))
+                    .thenReturn(Optional.of(opportunity(10, 10)));
+            doThrow(new ConflictException("Opportunity '" + OPPORTUNITY_ID
+                    + "' is no longer open or has reached capacity."))
+                    .when(registrationRepository).registerUserForOpportunity(
+                            anyString(), anyString(), anyString(), anyString(), anyString(),
+                            anyString(), anyString(), anyString(), anyString());
+
+            assertThatThrownBy(() ->
+                    registrationService.register(new RegisterRequest(USER_ID, OPPORTUNITY_ID)))
+                    .isInstanceOf(ConflictException.class);
+
+            verifyNoInteractions(notificationPublisher);
+        }
+
+        @Test
         @DisplayName("returns a success response with counts projected one step forward")
         void returnsProjectedCounts() {
             when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user()));
@@ -272,7 +344,7 @@ class RegistrationServiceTest {
                     .isInstanceOf(NotFoundException.class)
                     .hasMessage("User not found: " + USER_ID);
 
-            verifyNoInteractions(opportunityRepository, registrationRepository);
+            verifyNoInteractions(opportunityRepository, registrationRepository, notificationPublisher);
         }
 
         @Test
@@ -286,7 +358,7 @@ class RegistrationServiceTest {
                     .isInstanceOf(NotFoundException.class)
                     .hasMessage("Opportunity not found: " + OPPORTUNITY_ID);
 
-            verifyNoInteractions(registrationRepository);
+            verifyNoInteractions(registrationRepository, notificationPublisher);
         }
 
         @Test

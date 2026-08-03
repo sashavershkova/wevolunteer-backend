@@ -3,6 +3,9 @@ package com.wevolunteer.backend.service;
 import com.wevolunteer.backend.model.Opportunity;
 import com.wevolunteer.backend.model.Registration;
 import com.wevolunteer.backend.model.User;
+import com.wevolunteer.backend.notification.NotificationEvent;
+import com.wevolunteer.backend.notification.NotificationEventType;
+import com.wevolunteer.backend.notification.NotificationPublisher;
 import com.wevolunteer.backend.repository.OpportunityRepository;
 import com.wevolunteer.backend.repository.RegistrationRepository;
 import com.wevolunteer.backend.repository.UserRepository;
@@ -12,6 +15,7 @@ import com.wevolunteer.backend.dto.RegisterResponse;
 import com.wevolunteer.backend.exception.ForbiddenException;
 import com.wevolunteer.backend.exception.NotFoundException;
 
+import java.time.Instant;
 import java.util.List;
 
 @Service
@@ -20,15 +24,18 @@ public class RegistrationService {
     private final RegistrationRepository registrationRepository;
     private final UserRepository userRepository;
     private final OpportunityRepository opportunityRepository;
+    private final NotificationPublisher notificationPublisher;
 
     public RegistrationService(
             RegistrationRepository registrationRepository,
             UserRepository userRepository,
-            OpportunityRepository opportunityRepository) {
+            OpportunityRepository opportunityRepository,
+            NotificationPublisher notificationPublisher) {
 
         this.registrationRepository = registrationRepository;
         this.userRepository = userRepository;
         this.opportunityRepository = opportunityRepository;
+        this.notificationPublisher = notificationPublisher;
     }
 
     public List<Registration> getRegistrationsByUserId(String userId) {
@@ -101,6 +108,19 @@ public class RegistrationService {
                 opportunity.organizationId(),
                 opportunity.organizationName()
         );
+
+        notificationPublisher.publish(new NotificationEvent(
+                NotificationEventType.REGISTRATION_CREATED,
+                user.userId(),
+                user.name(),
+                user.email(),
+                opportunity.opportunityId(),
+                opportunity.title(),
+                opportunity.date(),
+                opportunity.organizationId(),
+                opportunity.organizationName(),
+                Instant.now()
+        ));
 
         return new RegisterResponse(
                 "Registration successful",
