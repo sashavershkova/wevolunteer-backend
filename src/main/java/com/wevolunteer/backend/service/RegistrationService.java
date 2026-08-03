@@ -132,6 +132,10 @@ public class RegistrationService {
     }
 
     public void cancelRegistration(String userId, String opportunityId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() ->
+                        new NotFoundException("User not found: " + userId));
+
         Opportunity opportunity = opportunityRepository.findById(opportunityId)
                 .orElseThrow(() ->
                         new NotFoundException("Opportunity not found: " + opportunityId));
@@ -141,6 +145,19 @@ public class RegistrationService {
                 opportunityId,
                 opportunity.date()
         );
+
+        notificationPublisher.publish(new NotificationEvent(
+                NotificationEventType.REGISTRATION_CANCELLED,
+                user.userId(),
+                user.name(),
+                user.email(),
+                opportunity.opportunityId(),
+                opportunity.title(),
+                opportunity.date(),
+                opportunity.organizationId(),
+                opportunity.organizationName(),
+                Instant.now()
+        ));
     }
 
     /**

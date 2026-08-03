@@ -404,6 +404,7 @@ class RegistrationServiceTest {
         @Test
         @DisplayName("looks the opportunity up to supply its date as the sort key")
         void suppliesOpportunityDate() {
+            when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user()));
             when(opportunityRepository.findById(OPPORTUNITY_ID))
                     .thenReturn(Optional.of(opportunity(10, 3)));
 
@@ -411,12 +412,12 @@ class RegistrationServiceTest {
 
             verify(registrationRepository)
                     .cancelRegistration(USER_ID, OPPORTUNITY_ID, "2026-08-01");
-            verifyNoInteractions(userRepository);
         }
 
         @Test
         @DisplayName("throws NotFoundException and cancels nothing when the opportunity is absent")
         void throwsWhenOpportunityMissing() {
+            when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user()));
             when(opportunityRepository.findById(OPPORTUNITY_ID)).thenReturn(Optional.empty());
 
             assertThatThrownBy(() ->
@@ -424,20 +425,80 @@ class RegistrationServiceTest {
                     .isInstanceOf(NotFoundException.class)
                     .hasMessage("Opportunity not found: " + OPPORTUNITY_ID);
 
-            verifyNoInteractions(registrationRepository);
+            verifyNoInteractions(registrationRepository, notificationPublisher);
         }
 
         @Test
-        @DisplayName("does not verify the user exists before cancelling")
-        void doesNotCheckUser() {
+        @DisplayName("throws NotFoundException and looks up nothing else when the user is absent")
+        void throwsWhenUserMissing() {
+            when(userRepository.findById(USER_ID)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() ->
+                    registrationService.cancelRegistration(USER_ID, OPPORTUNITY_ID))
+                    .isInstanceOf(NotFoundException.class)
+                    .hasMessage("User not found: " + USER_ID);
+
+            verifyNoInteractions(opportunityRepository, registrationRepository, notificationPublisher);
+        }
+
+        @Test
+        @DisplayName("publishes exactly one REGISTRATION_CANCELLED event built from the current user and opportunity")
+        void publishesRegistrationCancelledEvent() {
+            when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user()));
             when(opportunityRepository.findById(OPPORTUNITY_ID))
                     .thenReturn(Optional.of(opportunity(10, 3)));
 
-            registrationService.cancelRegistration("unknown-user", OPPORTUNITY_ID);
+            Instant before = Instant.now();
+            registrationService.cancelRegistration(USER_ID, OPPORTUNITY_ID);
+            Instant after = Instant.now();
 
-            verify(userRepository, never()).findById(any());
-            verify(registrationRepository)
-                    .cancelRegistration("unknown-user", OPPORTUNITY_ID, "2026-08-01");
+            ArgumentCaptor<NotificationEvent> captor = ArgumentCaptor.forClass(NotificationEvent.class);
+            verify(notificationPublisher).publish(captor.capture());
+
+            NotificationEvent event = captor.getValue();
+            assertThat(event.eventType()).isEqualTo(NotificationEventType.REGISTRATION_CANCELLED);
+            assertThat(event.userId()).isEqualTo(USER_ID);
+            assertThat(event.volunteerName()).isEqualTo("Chelsea Pham");
+            assertThat(event.volunteerEmail()).isEqualTo("chelsea@example.com");
+            assertThat(event.opportunityId()).isEqualTo(OPPORTUNITY_ID);
+            assertThat(event.opportunityTitle()).isEqualTo("Beach Cleanup");
+            assertThat(event.opportunityDate()).isEqualTo("2026-08-01");
+            assertThat(event.organizationId()).isEqualTo(ORG_ID);
+            assertThat(event.organizationName()).isEqualTo(ORG_NAME);
+            assertThat(event.timestamp()).isNotNull().isBetween(before, after);
+        }
+
+        @Test
+        @DisplayName("publishes the notification only after the cancellation repository call succeeds")
+        void publishesAfterRepositoryCall() {
+            when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user()));
+            when(opportunityRepository.findById(OPPORTUNITY_ID))
+                    .thenReturn(Optional.of(opportunity(10, 3)));
+
+            registrationService.cancelRegistration(USER_ID, OPPORTUNITY_ID);
+
+            InOrder inOrder = inOrder(registrationRepository, notificationPublisher);
+            inOrder.verify(registrationRepository)
+                    .cancelRegistration(USER_ID, OPPORTUNITY_ID, "2026-08-01");
+            inOrder.verify(notificationPublisher).publish(any(NotificationEvent.class));
+        }
+
+        @Test
+        @DisplayName("does not publish a notification when the repository rejects the cancellation")
+        void doesNotPublishWhenRepositoryFails() {
+            when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user()));
+            when(opportunityRepository.findById(OPPORTUNITY_ID))
+                    .thenReturn(Optional.of(opportunity(10, 3)));
+            doThrow(new ConflictException("Registration not found for user '" + USER_ID
+                    + "' and opportunity '" + OPPORTUNITY_ID + "'."))
+                    .when(registrationRepository)
+                    .cancelRegistration(USER_ID, OPPORTUNITY_ID, "2026-08-01");
+
+            assertThatThrownBy(() ->
+                    registrationService.cancelRegistration(USER_ID, OPPORTUNITY_ID))
+                    .isInstanceOf(ConflictException.class);
+
+            verifyNoInteractions(notificationPublisher);
         }
     }
 
