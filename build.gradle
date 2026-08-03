@@ -28,6 +28,7 @@ dependencies {
 	implementation platform("software.amazon.awssdk:bom:2.31.78")
 	implementation "software.amazon.awssdk:dynamodb"
 	implementation "software.amazon.awssdk:s3"
+	implementation "software.amazon.awssdk:sns"
 
 	developmentOnly 'org.springframework.boot:spring-boot-devtools'
 
