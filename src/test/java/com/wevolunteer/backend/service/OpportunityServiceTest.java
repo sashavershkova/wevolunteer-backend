@@ -331,8 +331,12 @@ class OpportunityServiceTest {
         @Test
         @DisplayName("owning organization can delete a closed, unregistered, future opportunity")
         void ownerCanDelete() {
+            // A relative date, not a fixed literal: a hardcoded "future" date eventually becomes
+            // the past and starts failing this test on the wrong grounds (the date check, not
+            // ownership/status, which is what this test actually covers).
+            String futureDate = java.time.LocalDate.now().plusDays(1).toString();
             when(opportunityRepository.findById(OPPORTUNITY_ID))
-                    .thenReturn(Optional.of(opportunity(OPPORTUNITY_ID, "CLOSED", 10, 0, "2026-08-01")));
+                    .thenReturn(Optional.of(opportunity(OPPORTUNITY_ID, "CLOSED", 10, 0, futureDate)));
 
             opportunityService.deleteOpportunity(OPPORTUNITY_ID, ORG_ID);
 
