@@ -27,11 +27,11 @@ public class WaitlistController {
     }
 
     @PostMapping("/waitlist/me/{opportunityId}")
-    public void joinMyWaitlist(
+    public Waitlist joinMyWaitlist(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable String opportunityId) {
 
-        waitlistService.join(jwt.getSubject(), opportunityId);
+        return waitlistService.join(jwt.getSubject(), opportunityId);
     }
 
     @DeleteMapping("/waitlist/me/{opportunityId}")

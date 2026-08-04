@@ -13,7 +13,6 @@ import software.amazon.awssdk.services.dynamodb.model.TransactWriteItem;
 import software.amazon.awssdk.services.dynamodb.model.TransactWriteItemsRequest;
 import software.amazon.awssdk.services.dynamodb.model.TransactionCanceledException;
 
-import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -77,41 +76,31 @@ public class DynamoDbWaitlistRepository implements WaitlistRepository {
     }
 
     @Override
-    public void joinWaitlist(
-            String userId,
-            String userName,
-            String userEmail,
-            String opportunityId,
-            String opportunityTitle,
-            String opportunityDate,
-            String opportunityLocation,
-            String organizationId,
-            String organizationName) {
-
-        String joinedAt = LocalDateTime.now().toString();
-
+    public void joinWaitlist(Waitlist waitlist) {
         Map<String, AttributeValue> userWaitlistItem = new HashMap<>();
-        userWaitlistItem.put("PK", AttributeValue.fromS("USER#" + userId));
-        userWaitlistItem.put("SK", AttributeValue.fromS("WAITLIST#" + opportunityDate + "#" + opportunityId));
+        userWaitlistItem.put("PK", AttributeValue.fromS("USER#" + waitlist.userId()));
+        userWaitlistItem.put("SK", AttributeValue.fromS(
+                "WAITLIST#" + waitlist.date() + "#" + waitlist.opportunityId()));
         userWaitlistItem.put("entityType", AttributeValue.fromS("WAITLIST"));
-        userWaitlistItem.put("userId", AttributeValue.fromS(userId));
-        userWaitlistItem.put("opportunityId", AttributeValue.fromS(opportunityId));
-        userWaitlistItem.put("title", AttributeValue.fromS(opportunityTitle));
-        userWaitlistItem.put("date", AttributeValue.fromS(opportunityDate));
-        userWaitlistItem.put("location", AttributeValue.fromS(opportunityLocation));
-        userWaitlistItem.put("organizationId", AttributeValue.fromS(organizationId));
-        userWaitlistItem.put("organizationName", AttributeValue.fromS(organizationName));
-        userWaitlistItem.put("joinedAt", AttributeValue.fromS(joinedAt));
+        userWaitlistItem.put("userId", AttributeValue.fromS(waitlist.userId()));
+        userWaitlistItem.put("opportunityId", AttributeValue.fromS(waitlist.opportunityId()));
+        userWaitlistItem.put("title", AttributeValue.fromS(waitlist.title()));
+        userWaitlistItem.put("date", AttributeValue.fromS(waitlist.date()));
+        userWaitlistItem.put("location", AttributeValue.fromS(waitlist.location()));
+        userWaitlistItem.put("organizationId", AttributeValue.fromS(waitlist.organizationId()));
+        userWaitlistItem.put("organizationName", AttributeValue.fromS(waitlist.organizationName()));
+        userWaitlistItem.put("joinedAt", AttributeValue.fromS(waitlist.joinedAt()));
 
         Map<String, AttributeValue> opportunityWaitlistItem = new HashMap<>();
-        opportunityWaitlistItem.put("PK", AttributeValue.fromS("OPPORTUNITY#" + opportunityId));
-        opportunityWaitlistItem.put("SK", AttributeValue.fromS("WAITLIST#" + joinedAt + "#" + userId));
+        opportunityWaitlistItem.put("PK", AttributeValue.fromS("OPPORTUNITY#" + waitlist.opportunityId()));
+        opportunityWaitlistItem.put("SK", AttributeValue.fromS(
+                "WAITLIST#" + waitlist.joinedAt() + "#" + waitlist.userId()));
         opportunityWaitlistItem.put("entityType", AttributeValue.fromS("OPPORTUNITY_WAITLIST"));
-        opportunityWaitlistItem.put("userId", AttributeValue.fromS(userId));
-        opportunityWaitlistItem.put("opportunityId", AttributeValue.fromS(opportunityId));
-        opportunityWaitlistItem.put("volunteerName", AttributeValue.fromS(userName));
-        opportunityWaitlistItem.put("email", AttributeValue.fromS(userEmail));
-        opportunityWaitlistItem.put("joinedAt", AttributeValue.fromS(joinedAt));
+        opportunityWaitlistItem.put("userId", AttributeValue.fromS(waitlist.userId()));
+        opportunityWaitlistItem.put("opportunityId", AttributeValue.fromS(waitlist.opportunityId()));
+        opportunityWaitlistItem.put("volunteerName", AttributeValue.fromS(waitlist.volunteerName()));
+        opportunityWaitlistItem.put("email", AttributeValue.fromS(waitlist.email()));
+        opportunityWaitlistItem.put("joinedAt", AttributeValue.fromS(waitlist.joinedAt()));
 
         Put createUserWaitlistEntry = Put.builder()
                 .tableName(TABLE_NAME)
@@ -136,7 +125,8 @@ public class DynamoDbWaitlistRepository implements WaitlistRepository {
             dynamoDbClient.transactWriteItems(transaction);
         } catch (TransactionCanceledException e) {
             throw new ConflictException(
-                    "User '" + userId + "' is already on the waitlist for opportunity '" + opportunityId + "'.");
+                    "User '" + waitlist.userId() + "' is already on the waitlist for opportunity '"
+                            + waitlist.opportunityId() + "'.");
         }
     }
 

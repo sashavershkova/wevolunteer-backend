@@ -10,17 +10,7 @@ public interface WaitlistRepository {
 
     List<Waitlist> findByOpportunityId(String opportunityId);
 
-    void joinWaitlist(
-            String userId,
-            String userName,
-            String userEmail,
-            String opportunityId,
-            String opportunityTitle,
-            String opportunityDate,
-            String opportunityLocation,
-            String organizationId,
-            String organizationName
-    );
+    void joinWaitlist(Waitlist waitlist);
 
     void leaveWaitlist(String userId, String opportunityId, String opportunityDate);
 }

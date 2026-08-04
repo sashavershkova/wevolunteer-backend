@@ -48,10 +48,7 @@ class DynamoDbWaitlistRepositoryTest {
         @Test
         @DisplayName("writes both the user-side and opportunity-side waitlist entries in one transaction")
         void writesBothSides() {
-            repository.joinWaitlist(
-                    USER_ID, "Chelsea Pham", "chelsea@example.com",
-                    OPPORTUNITY_ID, "Beach Cleanup", "2026-08-01", "Seattle, WA",
-                    "org-1", "Green Earth");
+            repository.joinWaitlist(waitlist());
 
             ArgumentCaptor<TransactWriteItemsRequest> captor =
                     ArgumentCaptor.forClass(TransactWriteItemsRequest.class);
@@ -75,10 +72,7 @@ class DynamoDbWaitlistRepositoryTest {
             when(dynamoDbClient.transactWriteItems(any(TransactWriteItemsRequest.class)))
                     .thenThrow(TransactionCanceledException.builder().build());
 
-            assertThatThrownBy(() -> repository.joinWaitlist(
-                    USER_ID, "Chelsea Pham", "chelsea@example.com",
-                    OPPORTUNITY_ID, "Beach Cleanup", "2026-08-01", "Seattle, WA",
-                    "org-1", "Green Earth"))
+            assertThatThrownBy(() -> repository.joinWaitlist(waitlist()))
                     .isInstanceOf(ConflictException.class)
                     .hasMessageContaining("already on the waitlist");
         }
@@ -146,5 +140,19 @@ class DynamoDbWaitlistRepositoryTest {
             assertThat(result.get(0).title()).isEqualTo("Beach Cleanup");
             assertThat(result.get(0).joinedAt()).isEqualTo("2026-07-01T10:00:00");
         }
+    }
+
+    private static Waitlist waitlist() {
+        return new Waitlist(
+                USER_ID,
+                OPPORTUNITY_ID,
+                "Beach Cleanup",
+                "2026-08-01",
+                "Seattle, WA",
+                "org-1",
+                "Green Earth",
+                "Chelsea Pham",
+                "chelsea@example.com",
+                "2026-07-29T10:00:00");
     }
 }

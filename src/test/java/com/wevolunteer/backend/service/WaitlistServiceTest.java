@@ -19,6 +19,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.List;
 import java.util.Optional;
 
+import org.mockito.ArgumentCaptor;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
@@ -51,24 +53,30 @@ class WaitlistServiceTest {
     class Join {
 
         @Test
-        @DisplayName("joins the waitlist when the opportunity is open and full")
+        @DisplayName("joins the waitlist when the opportunity is open and full, and returns the created entry")
         void joinsWhenOpenAndFull() {
             when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user()));
             when(opportunityRepository.findById(OPPORTUNITY_ID))
                     .thenReturn(Optional.of(opportunity("OPEN", 10, 10)));
 
-            waitlistService.join(USER_ID, OPPORTUNITY_ID);
+            Waitlist result = waitlistService.join(USER_ID, OPPORTUNITY_ID);
 
-            verify(waitlistRepository).joinWaitlist(
-                    USER_ID,
-                    "Chelsea Pham",
-                    "chelsea@example.com",
-                    OPPORTUNITY_ID,
-                    "Beach Cleanup",
-                    "2026-08-01",
-                    "Seattle, WA",
-                    ORG_ID,
-                    ORG_NAME);
+            ArgumentCaptor<Waitlist> captor = ArgumentCaptor.forClass(Waitlist.class);
+            verify(waitlistRepository).joinWaitlist(captor.capture());
+
+            Waitlist written = captor.getValue();
+            assertThat(written.userId()).isEqualTo(USER_ID);
+            assertThat(written.opportunityId()).isEqualTo(OPPORTUNITY_ID);
+            assertThat(written.title()).isEqualTo("Beach Cleanup");
+            assertThat(written.date()).isEqualTo("2026-08-01");
+            assertThat(written.location()).isEqualTo("Seattle, WA");
+            assertThat(written.organizationId()).isEqualTo(ORG_ID);
+            assertThat(written.organizationName()).isEqualTo(ORG_NAME);
+            assertThat(written.volunteerName()).isEqualTo("Chelsea Pham");
+            assertThat(written.email()).isEqualTo("chelsea@example.com");
+            assertThat(written.joinedAt()).isNotNull();
+
+            assertThat(result).isEqualTo(written);
         }
 
         @Test

@@ -49,9 +49,12 @@ class WaitlistControllerTest {
     @DisplayName("joinMyWaitlist resolves the user from the JWT subject and never accepts a client-supplied user id")
     void joinMyWaitlistResolvesUserFromJwtSubject() {
         when(jwt.getSubject()).thenReturn(USER_ID);
+        Waitlist expected = waitlist();
+        when(waitlistService.join(USER_ID, OPPORTUNITY_ID)).thenReturn(expected);
 
-        waitlistController.joinMyWaitlist(jwt, OPPORTUNITY_ID);
+        Waitlist result = waitlistController.joinMyWaitlist(jwt, OPPORTUNITY_ID);
 
+        assertThat(result).isSameAs(expected);
         verify(waitlistService).join(USER_ID, OPPORTUNITY_ID);
         verifyNoMoreInteractions(waitlistService);
     }

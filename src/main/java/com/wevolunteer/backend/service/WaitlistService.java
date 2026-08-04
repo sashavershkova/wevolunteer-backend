@@ -10,6 +10,7 @@ import com.wevolunteer.backend.repository.UserRepository;
 import com.wevolunteer.backend.repository.WaitlistRepository;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -33,7 +34,7 @@ public class WaitlistService {
         return waitlistRepository.findByUserId(userId);
     }
 
-    public void join(String userId, String opportunityId) {
+    public Waitlist join(String userId, String opportunityId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() ->
                         new NotFoundException("User not found: " + userId));
@@ -52,17 +53,22 @@ public class WaitlistService {
                     "Opportunity '" + opportunityId + "' still has open spots - register instead of joining the waitlist.");
         }
 
-        waitlistRepository.joinWaitlist(
+        Waitlist waitlist = new Waitlist(
                 user.userId(),
-                user.name(),
-                user.email(),
                 opportunity.opportunityId(),
                 opportunity.title(),
                 opportunity.date(),
                 opportunity.location(),
                 opportunity.organizationId(),
-                opportunity.organizationName()
+                opportunity.organizationName(),
+                user.name(),
+                user.email(),
+                LocalDateTime.now().toString()
         );
+
+        waitlistRepository.joinWaitlist(waitlist);
+
+        return waitlist;
     }
 
     public void leave(String userId, String opportunityId) {
