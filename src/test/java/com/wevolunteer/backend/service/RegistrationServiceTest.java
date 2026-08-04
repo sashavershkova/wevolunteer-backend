@@ -30,11 +30,14 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -516,7 +519,7 @@ class RegistrationServiceTest {
                     registrationWithDate("user-1", OPPORTUNITY_ID, null),
                     registrationWithDate("user-2", OPPORTUNITY_ID, null)));
 
-            registrationService.cancelAllRegistrationsForOpportunity(OPPORTUNITY_ID);
+            registrationService.cancelAllRegistrationsForOpportunity(opportunity(10, 2));
 
             verify(registrationRepository).cancelRegistrationForOpportunityClose("user-1", OPPORTUNITY_ID);
             verify(registrationRepository).cancelRegistrationForOpportunityClose("user-2", OPPORTUNITY_ID);
@@ -526,18 +529,87 @@ class RegistrationServiceTest {
         }
 
         @Test
-        @DisplayName("succeeds without cancelling anything when there are no registrations")
+        @DisplayName("succeeds without cancelling or publishing anything when there are no registrations")
         void succeedsWithNoRegistrations() {
             when(registrationRepository.findByOpportunityId(OPPORTUNITY_ID)).thenReturn(List.of());
 
-            registrationService.cancelAllRegistrationsForOpportunity(OPPORTUNITY_ID);
+            registrationService.cancelAllRegistrationsForOpportunity(opportunity(10, 0));
 
             verify(registrationRepository, never())
                     .cancelRegistrationForOpportunityClose(anyString(), anyString());
+            verifyNoInteractions(notificationPublisher);
         }
 
         @Test
-        @DisplayName("propagates a failure from the repository instead of continuing or swallowing it")
+        @DisplayName("publishes exactly one REGISTRATION_CANCELLED_BY_ORGANIZATION event "
+                + "for a single affected volunteer")
+        void publishesOneEventForOneVolunteer() {
+            when(registrationRepository.findByOpportunityId(OPPORTUNITY_ID)).thenReturn(List.of(
+                    registrationForClose("user-1", "Alice", "alice@example.com")));
+
+            Instant before = Instant.now();
+            registrationService.cancelAllRegistrationsForOpportunity(opportunity(10, 1));
+            Instant after = Instant.now();
+
+            ArgumentCaptor<NotificationEvent> captor = ArgumentCaptor.forClass(NotificationEvent.class);
+            verify(notificationPublisher).publish(captor.capture());
+
+            NotificationEvent event = captor.getValue();
+            assertThat(event.eventType())
+                    .isEqualTo(NotificationEventType.REGISTRATION_CANCELLED_BY_ORGANIZATION);
+            assertThat(event.userId()).isEqualTo("user-1");
+            assertThat(event.volunteerName()).isEqualTo("Alice");
+            assertThat(event.volunteerEmail()).isEqualTo("alice@example.com");
+            assertThat(event.opportunityId()).isEqualTo(OPPORTUNITY_ID);
+            assertThat(event.opportunityTitle()).isEqualTo("Beach Cleanup");
+            assertThat(event.opportunityDate()).isEqualTo("2026-08-01");
+            assertThat(event.organizationId()).isEqualTo(ORG_ID);
+            assertThat(event.organizationName()).isEqualTo(ORG_NAME);
+            assertThat(event.timestamp()).isNotNull().isBetween(before, after);
+        }
+
+        @Test
+        @DisplayName("publishes one REGISTRATION_CANCELLED_BY_ORGANIZATION event per affected "
+                + "volunteer, each carrying that volunteer's own data")
+        void publishesOneEventPerVolunteer() {
+            when(registrationRepository.findByOpportunityId(OPPORTUNITY_ID)).thenReturn(List.of(
+                    registrationForClose("user-1", "Alice", "alice@example.com"),
+                    registrationForClose("user-2", "Bob", "bob@example.com"),
+                    registrationForClose("user-3", "Cara", "cara@example.com")));
+
+            registrationService.cancelAllRegistrationsForOpportunity(opportunity(10, 3));
+
+            ArgumentCaptor<NotificationEvent> captor = ArgumentCaptor.forClass(NotificationEvent.class);
+            verify(notificationPublisher, times(3)).publish(captor.capture());
+
+            assertThat(captor.getAllValues())
+                    .extracting(
+                            NotificationEvent::userId,
+                            NotificationEvent::volunteerName,
+                            NotificationEvent::volunteerEmail)
+                    .containsExactlyInAnyOrder(
+                            tuple("user-1", "Alice", "alice@example.com"),
+                            tuple("user-2", "Bob", "bob@example.com"),
+                            tuple("user-3", "Cara", "cara@example.com"));
+        }
+
+        @Test
+        @DisplayName("publishes a volunteer's event only after that volunteer's cancellation succeeds")
+        void publishesAfterEachCancellationSucceeds() {
+            when(registrationRepository.findByOpportunityId(OPPORTUNITY_ID)).thenReturn(List.of(
+                    registrationForClose("user-1", "Alice", "alice@example.com")));
+
+            registrationService.cancelAllRegistrationsForOpportunity(opportunity(10, 1));
+
+            InOrder inOrder = inOrder(registrationRepository, notificationPublisher);
+            inOrder.verify(registrationRepository)
+                    .cancelRegistrationForOpportunityClose("user-1", OPPORTUNITY_ID);
+            inOrder.verify(notificationPublisher).publish(any(NotificationEvent.class));
+        }
+
+        @Test
+        @DisplayName("propagates a failure from the repository instead of continuing or swallowing it, "
+                + "and never publishes anything for that volunteer")
         void propagatesRepositoryFailure() {
             when(registrationRepository.findByOpportunityId(OPPORTUNITY_ID)).thenReturn(List.of(
                     registration("user-1", OPPORTUNITY_ID),
@@ -547,9 +619,35 @@ class RegistrationServiceTest {
                     .cancelRegistrationForOpportunityClose("user-1", OPPORTUNITY_ID);
 
             assertThatThrownBy(() ->
-                    registrationService.cancelAllRegistrationsForOpportunity(OPPORTUNITY_ID))
+                    registrationService.cancelAllRegistrationsForOpportunity(opportunity(10, 2)))
                     .isInstanceOf(RuntimeException.class)
                     .hasMessage("DynamoDB transaction failed");
+
+            verifyNoInteractions(notificationPublisher);
+        }
+
+        @Test
+        @DisplayName("keeps the event already published for an earlier volunteer "
+                + "when a later volunteer's cancellation fails")
+        void keepsEarlierPublishWhenLaterCancellationFails() {
+            when(registrationRepository.findByOpportunityId(OPPORTUNITY_ID)).thenReturn(List.of(
+                    registrationForClose("user-1", "Alice", "alice@example.com"),
+                    registrationForClose("user-2", "Bob", "bob@example.com")));
+            doNothing()
+                    .when(registrationRepository)
+                    .cancelRegistrationForOpportunityClose("user-1", OPPORTUNITY_ID);
+            doThrow(new RuntimeException("DynamoDB transaction failed"))
+                    .when(registrationRepository)
+                    .cancelRegistrationForOpportunityClose("user-2", OPPORTUNITY_ID);
+
+            assertThatThrownBy(() ->
+                    registrationService.cancelAllRegistrationsForOpportunity(opportunity(10, 2)))
+                    .isInstanceOf(RuntimeException.class)
+                    .hasMessage("DynamoDB transaction failed");
+
+            ArgumentCaptor<NotificationEvent> captor = ArgumentCaptor.forClass(NotificationEvent.class);
+            verify(notificationPublisher, times(1)).publish(captor.capture());
+            assertThat(captor.getValue().userId()).isEqualTo("user-1");
         }
     }
 
@@ -608,6 +706,24 @@ class RegistrationServiceTest {
                 "ACTIVE",
                 "Chelsea Pham",
                 "chelsea@example.com",
+                "2026-07-24T10:00:00",
+                null, null, null);
+    }
+
+    /**
+     * An opportunity-side registration item as findByOpportunityId actually returns it: it
+     * carries volunteerName/email (written by registerUserForOpportunity) but no title/date/
+     * location/organizationId/organizationName, since those attributes live only on the
+     * user-side item.
+     */
+    private static Registration registrationForClose(String userId, String volunteerName, String email) {
+        return new Registration(
+                userId,
+                OPPORTUNITY_ID,
+                null, null, null, null, null,
+                "ACTIVE",
+                volunteerName,
+                email,
                 "2026-07-24T10:00:00",
                 null, null, null);
     }

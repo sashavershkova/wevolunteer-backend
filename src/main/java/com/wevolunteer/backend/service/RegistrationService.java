@@ -162,21 +162,48 @@ public class RegistrationService {
 
     /**
      * Cancels every registration for an opportunity, removing both dual-write DynamoDB items
-     * per registration. Used when an organization closes an opportunity. The opportunity-side
-     * registration item (what findByOpportunityId reads) carries no date attribute, so this uses
-     * cancelRegistrationForOpportunityClose, which looks up each registration's real sort key
-     * instead of reconstructing it. Each cancellation is its own transaction, so a failure
-     * partway through leaves the remaining registrations intact rather than corrupting data;
-     * the caller is responsible for not treating that as a successful close.
+     * per registration, and publishes one REGISTRATION_CANCELLED_BY_ORGANIZATION event per
+     * affected volunteer once their cancellation succeeds. Used when an organization closes an
+     * opportunity.
+     *
+     * <p>Each event describes the durable fact that has already happened for that one volunteer
+     * — their registration was cancelled — rather than the opportunity's own status, which is
+     * not yet CLOSED at this point and may never become so if a later volunteer's cancellation
+     * fails. OPPORTUNITY_CLOSED would be a false claim here, since the caller only calls
+     * opportunityRepository.close(...) after every cancellation in this loop has succeeded.
+     *
+     * <p>The opportunity-side registration item (what findByOpportunityId reads) carries no date
+     * attribute, so this uses cancelRegistrationForOpportunityClose, which looks up each
+     * registration's real sort key instead of reconstructing it. That same item already carries
+     * volunteerName and email (written by registerUserForOpportunity), so each event is built
+     * from the Registration already in hand — no additional User lookup per volunteer.
+     *
+     * <p>Each cancellation is its own transaction, so a failure partway through leaves the
+     * remaining registrations (and their events) unpublished rather than corrupting data; the
+     * caller is responsible for not treating that as a successful close.
      */
-    public void cancelAllRegistrationsForOpportunity(String opportunityId) {
-        List<Registration> registrations = registrationRepository.findByOpportunityId(opportunityId);
+    public void cancelAllRegistrationsForOpportunity(Opportunity opportunity) {
+        List<Registration> registrations =
+                registrationRepository.findByOpportunityId(opportunity.opportunityId());
 
         for (Registration registration : registrations) {
             registrationRepository.cancelRegistrationForOpportunityClose(
                     registration.userId(),
-                    opportunityId
+                    opportunity.opportunityId()
             );
+
+            notificationPublisher.publish(new NotificationEvent(
+                    NotificationEventType.REGISTRATION_CANCELLED_BY_ORGANIZATION,
+                    registration.userId(),
+                    registration.volunteerName(),
+                    registration.email(),
+                    opportunity.opportunityId(),
+                    opportunity.title(),
+                    opportunity.date(),
+                    opportunity.organizationId(),
+                    opportunity.organizationName(),
+                    Instant.now()
+            ));
         }
     }
 }

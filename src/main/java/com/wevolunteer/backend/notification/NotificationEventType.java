@@ -4,5 +4,5 @@ package com.wevolunteer.backend.notification;
 public enum NotificationEventType {
     REGISTRATION_CREATED,
     REGISTRATION_CANCELLED,
-    OPPORTUNITY_CLOSED
+    REGISTRATION_CANCELLED_BY_ORGANIZATION
 }

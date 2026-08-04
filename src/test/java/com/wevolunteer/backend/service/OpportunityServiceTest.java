@@ -253,15 +253,15 @@ class OpportunityServiceTest {
         @Test
         @DisplayName("cancels all registrations for the opportunity before closing it")
         void cancelsRegistrationsBeforeClosing() {
-            when(opportunityRepository.findById(OPPORTUNITY_ID))
-                    .thenReturn(Optional.of(opportunity(OPPORTUNITY_ID, "OPEN", 20, 2)));
+            Opportunity open = opportunity(OPPORTUNITY_ID, "OPEN", 20, 2);
+            when(opportunityRepository.findById(OPPORTUNITY_ID)).thenReturn(Optional.of(open));
             when(opportunityRepository.close(OPPORTUNITY_ID))
                     .thenReturn(opportunity(OPPORTUNITY_ID, "CLOSED", 20, 0));
 
             opportunityService.closeOpportunity(OPPORTUNITY_ID, ORG_ID);
 
             InOrder inOrder = inOrder(registrationService, opportunityRepository);
-            inOrder.verify(registrationService).cancelAllRegistrationsForOpportunity(OPPORTUNITY_ID);
+            inOrder.verify(registrationService).cancelAllRegistrationsForOpportunity(open);
             inOrder.verify(opportunityRepository).close(OPPORTUNITY_ID);
         }
 
@@ -281,15 +281,15 @@ class OpportunityServiceTest {
         @Test
         @DisplayName("succeeds when the opportunity has no registrations to cancel")
         void succeedsWithNoRegistrations() {
-            when(opportunityRepository.findById(OPPORTUNITY_ID))
-                    .thenReturn(Optional.of(opportunity(OPPORTUNITY_ID, "OPEN", 20, 0)));
+            Opportunity open = opportunity(OPPORTUNITY_ID, "OPEN", 20, 0);
+            when(opportunityRepository.findById(OPPORTUNITY_ID)).thenReturn(Optional.of(open));
             when(opportunityRepository.close(OPPORTUNITY_ID))
                     .thenReturn(opportunity(OPPORTUNITY_ID, "CLOSED", 20, 0));
 
             assertThatCode(() -> opportunityService.closeOpportunity(OPPORTUNITY_ID, ORG_ID))
                     .doesNotThrowAnyException();
 
-            verify(registrationService).cancelAllRegistrationsForOpportunity(OPPORTUNITY_ID);
+            verify(registrationService).cancelAllRegistrationsForOpportunity(open);
             verify(opportunityRepository).close(OPPORTUNITY_ID);
         }
 
@@ -309,11 +309,11 @@ class OpportunityServiceTest {
         @Test
         @DisplayName("propagates a registration cleanup failure and never closes the opportunity")
         void propagatesCleanupFailureWithoutClosing() {
-            when(opportunityRepository.findById(OPPORTUNITY_ID))
-                    .thenReturn(Optional.of(opportunity(OPPORTUNITY_ID, "OPEN", 20, 2)));
+            Opportunity open = opportunity(OPPORTUNITY_ID, "OPEN", 20, 2);
+            when(opportunityRepository.findById(OPPORTUNITY_ID)).thenReturn(Optional.of(open));
             doThrow(new RuntimeException("DynamoDB transaction failed"))
                     .when(registrationService)
-                    .cancelAllRegistrationsForOpportunity(OPPORTUNITY_ID);
+                    .cancelAllRegistrationsForOpportunity(open);
 
             assertThatThrownBy(() ->
                     opportunityService.closeOpportunity(OPPORTUNITY_ID, ORG_ID))

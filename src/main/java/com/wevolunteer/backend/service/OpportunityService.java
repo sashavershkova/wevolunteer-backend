@@ -192,9 +192,10 @@ public class OpportunityService {
                     "Only the organization that owns this opportunity can close it.");
         }
 
-        // Cancel registrations before flipping status so a cleanup failure leaves the
+        // Cancel registrations (and publish one REGISTRATION_CANCELLED_BY_ORGANIZATION event
+        // per affected volunteer) before flipping status so a cleanup failure leaves the
         // opportunity OPEN instead of silently reporting a successful close.
-        registrationService.cancelAllRegistrationsForOpportunity(opportunityId);
+        registrationService.cancelAllRegistrationsForOpportunity(existingOpportunity);
 
         return opportunityRepository.close(opportunityId);
     }
