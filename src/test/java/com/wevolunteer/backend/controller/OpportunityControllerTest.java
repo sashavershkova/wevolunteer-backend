@@ -71,6 +71,34 @@ class OpportunityControllerTest {
         verifyNoMoreInteractions(opportunityService);
     }
 
+    @Test
+    @DisplayName("reopenOpportunity resolves the organization from the JWT subject and delegates to the service")
+    void reopenResolvesOrganizationFromJwtSubject() {
+        when(jwt.getSubject()).thenReturn(ORG_ID);
+        Opportunity reopened = opportunity("OPEN");
+        when(opportunityService.reopenOpportunity(OPPORTUNITY_ID, ORG_ID)).thenReturn(reopened);
+
+        OpportunityResponse mapped = OpportunityResponse.from(reopened, null);
+        when(opportunityResponseMapper.toResponse(reopened)).thenReturn(mapped);
+
+        OpportunityResponse result = opportunityController.reopenOpportunity(jwt, OPPORTUNITY_ID);
+
+        assertThat(result).isSameAs(mapped);
+    }
+
+    @Test
+    @DisplayName("reopenOpportunity does not call the service with any other organization id")
+    void reopenDoesNotSubstituteAnotherOrganizationId() {
+        when(jwt.getSubject()).thenReturn(ORG_ID);
+        when(opportunityService.reopenOpportunity(OPPORTUNITY_ID, ORG_ID))
+                .thenReturn(opportunity("OPEN"));
+
+        opportunityController.reopenOpportunity(jwt, OPPORTUNITY_ID);
+
+        verify(opportunityService).reopenOpportunity(OPPORTUNITY_ID, ORG_ID);
+        verifyNoMoreInteractions(opportunityService);
+    }
+
     private static Opportunity opportunity(String status) {
         return new Opportunity(
                 OPPORTUNITY_ID,

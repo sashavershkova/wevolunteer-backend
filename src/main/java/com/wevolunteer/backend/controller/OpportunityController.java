@@ -115,4 +115,13 @@ public class OpportunityController {
         return opportunityResponseMapper.toResponse(
                 opportunityService.closeOpportunity(opportunityId, jwt.getSubject()));
     }
+
+    @PatchMapping("/opportunities/{opportunityId}/reopen")
+    public OpportunityResponse reopenOpportunity(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable String opportunityId) {
+
+        return opportunityResponseMapper.toResponse(
+                opportunityService.reopenOpportunity(opportunityId, jwt.getSubject()));
+    }
 }

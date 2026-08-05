@@ -325,6 +325,132 @@ class OpportunityServiceTest {
     }
 
     @Nested
+    @DisplayName("reopenOpportunity")
+    class ReopenOpportunity {
+
+        @Test
+        @DisplayName("owning organization can reopen a closed opportunity dated in the future")
+        void ownerReopensFutureOpportunity() {
+            String futureDate = java.time.LocalDate.now().plusDays(1).toString();
+            when(opportunityRepository.findById(OPPORTUNITY_ID))
+                    .thenReturn(Optional.of(opportunity(OPPORTUNITY_ID, "CLOSED", 10, 0, futureDate)));
+            Opportunity reopened = opportunity(OPPORTUNITY_ID, "OPEN", 10, 0, futureDate);
+            when(opportunityRepository.reopen(OPPORTUNITY_ID)).thenReturn(reopened);
+
+            assertThat(opportunityService.reopenOpportunity(OPPORTUNITY_ID, ORG_ID))
+                    .isSameAs(reopened);
+        }
+
+        @Test
+        @DisplayName("owning organization can reopen a closed opportunity dated exactly today")
+        void ownerReopensTodayOpportunity() {
+            String today = java.time.LocalDate.now().toString();
+            when(opportunityRepository.findById(OPPORTUNITY_ID))
+                    .thenReturn(Optional.of(opportunity(OPPORTUNITY_ID, "CLOSED", 10, 0, today)));
+            when(opportunityRepository.reopen(OPPORTUNITY_ID))
+                    .thenReturn(opportunity(OPPORTUNITY_ID, "OPEN", 10, 0, today));
+
+            assertThatCode(() -> opportunityService.reopenOpportunity(OPPORTUNITY_ID, ORG_ID))
+                    .doesNotThrowAnyException();
+            verify(opportunityRepository, times(1)).reopen(OPPORTUNITY_ID);
+        }
+
+        @Test
+        @DisplayName("rejects reopening an OPEN opportunity")
+        void rejectsWhenAlreadyOpen() {
+            String futureDate = java.time.LocalDate.now().plusDays(1).toString();
+            when(opportunityRepository.findById(OPPORTUNITY_ID))
+                    .thenReturn(Optional.of(opportunity(OPPORTUNITY_ID, "OPEN", 10, 0, futureDate)));
+
+            assertThatThrownBy(() ->
+                    opportunityService.reopenOpportunity(OPPORTUNITY_ID, ORG_ID))
+                    .isInstanceOf(ConflictException.class)
+                    .hasMessage("Only closed opportunities can be reopened.");
+
+            verify(opportunityRepository, never()).reopen(anyString());
+        }
+
+        @Test
+        @DisplayName("rejects reopening a past closed opportunity")
+        void rejectsWhenDateInPast() {
+            when(opportunityRepository.findById(OPPORTUNITY_ID))
+                    .thenReturn(Optional.of(opportunity(OPPORTUNITY_ID, "CLOSED", 10, 0, "2020-01-01")));
+
+            assertThatThrownBy(() ->
+                    opportunityService.reopenOpportunity(OPPORTUNITY_ID, ORG_ID))
+                    .isInstanceOf(ConflictException.class)
+                    .hasMessage("Past opportunities cannot be reopened.");
+
+            verify(opportunityRepository, never()).reopen(anyString());
+        }
+
+        @Test
+        @DisplayName("a caller from a different organization cannot reopen it")
+        void rejectsNonOwner() {
+            String futureDate = java.time.LocalDate.now().plusDays(1).toString();
+            when(opportunityRepository.findById(OPPORTUNITY_ID))
+                    .thenReturn(Optional.of(opportunity(OPPORTUNITY_ID, "CLOSED", 10, 0, futureDate)));
+
+            assertThatThrownBy(() ->
+                    opportunityService.reopenOpportunity(OPPORTUNITY_ID, "org-99"))
+                    .isInstanceOf(ForbiddenException.class)
+                    .hasMessage("Only the organization that owns this opportunity can reopen it.");
+
+            verify(opportunityRepository, never()).reopen(anyString());
+        }
+
+        @Test
+        @DisplayName("throws NotFoundException and never checks ownership when the opportunity is absent")
+        void throwsWhenMissing() {
+            when(opportunityRepository.findById(OPPORTUNITY_ID)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() ->
+                    opportunityService.reopenOpportunity(OPPORTUNITY_ID, ORG_ID))
+                    .isInstanceOf(NotFoundException.class)
+                    .hasMessage("Opportunity not found: " + OPPORTUNITY_ID);
+
+            verify(opportunityRepository, never()).reopen(anyString());
+        }
+
+        @Test
+        @DisplayName("preserves all non-status fields on the reopened opportunity")
+        void preservesFields() {
+            String futureDate = java.time.LocalDate.now().plusDays(1).toString();
+            when(opportunityRepository.findById(OPPORTUNITY_ID))
+                    .thenReturn(Optional.of(opportunity(OPPORTUNITY_ID, "CLOSED", 10, 0, futureDate)));
+            Opportunity reopened = opportunity(OPPORTUNITY_ID, "OPEN", 10, 0, futureDate);
+            when(opportunityRepository.reopen(OPPORTUNITY_ID)).thenReturn(reopened);
+
+            Opportunity result = opportunityService.reopenOpportunity(OPPORTUNITY_ID, ORG_ID);
+
+            assertThat(result.opportunityId()).isEqualTo(OPPORTUNITY_ID);
+            assertThat(result.title()).isEqualTo("Beach Cleanup");
+            assertThat(result.description()).isEqualTo("Pick up litter");
+            assertThat(result.category()).isEqualTo("ENVIRONMENT");
+            assertThat(result.location()).isEqualTo("Seattle, WA");
+            assertThat(result.date()).isEqualTo(futureDate);
+            assertThat(result.capacity()).isEqualTo(10);
+            assertThat(result.organizationId()).isEqualTo(ORG_ID);
+            assertThat(result.organizationName()).isEqualTo(ORG_NAME);
+        }
+
+        @Test
+        @DisplayName("returns an opportunity with registeredCount 0 and availableSpots equal to capacity")
+        void returnsZeroedRegisteredCountAndFullAvailability() {
+            String futureDate = java.time.LocalDate.now().plusDays(1).toString();
+            when(opportunityRepository.findById(OPPORTUNITY_ID))
+                    .thenReturn(Optional.of(opportunity(OPPORTUNITY_ID, "CLOSED", 10, 0, futureDate)));
+            when(opportunityRepository.reopen(OPPORTUNITY_ID))
+                    .thenReturn(opportunity(OPPORTUNITY_ID, "OPEN", 10, 0, futureDate));
+
+            Opportunity result = opportunityService.reopenOpportunity(OPPORTUNITY_ID, ORG_ID);
+
+            assertThat(result.registeredCount()).isZero();
+            assertThat(result.availableSpots()).isEqualTo(result.capacity());
+        }
+    }
+
+    @Nested
     @DisplayName("deleteOpportunity")
     class DeleteOpportunity {
 

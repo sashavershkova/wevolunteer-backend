@@ -200,6 +200,25 @@ public class OpportunityService {
         return opportunityRepository.close(opportunityId);
     }
 
+    public Opportunity reopenOpportunity(String opportunityId, String organizationId) {
+        Opportunity existingOpportunity = getById(opportunityId);
+
+        if (!existingOpportunity.organizationId().equals(organizationId)) {
+            throw new ForbiddenException(
+                    "Only the organization that owns this opportunity can reopen it.");
+        }
+
+        if (!"CLOSED".equals(existingOpportunity.status())) {
+            throw new ConflictException("Only closed opportunities can be reopened.");
+        }
+
+        if (LocalDate.parse(existingOpportunity.date()).isBefore(LocalDate.now())) {
+            throw new ConflictException("Past opportunities cannot be reopened.");
+        }
+
+        return opportunityRepository.reopen(opportunityId);
+    }
+
     private void validateDateRange(String startDate, String endDate) {
         if (startDate == null || startDate.isBlank() || endDate == null || endDate.isBlank()) {
             return;

@@ -225,10 +225,103 @@ class DynamoDbOpportunityRepositoryTest {
         }
     }
 
+    @Nested
+    @DisplayName("reopen")
+    class Reopen {
+
+        @Test
+        @DisplayName("sets status to OPEN, resets registeredCount to 0 and restores GSI1PK/GSI1SK in the same update")
+        void setsOpenStatusAndRestoresGsi1() {
+            when(dynamoDbClient.getItem(any(GetItemRequest.class)))
+                    .thenReturn(GetItemResponse.builder().item(itemClosed(null)).build());
+
+            repository.reopen(OPPORTUNITY_ID);
+
+            ArgumentCaptor<UpdateItemRequest> captor = ArgumentCaptor.forClass(UpdateItemRequest.class);
+            verify(dynamoDbClient).updateItem(captor.capture());
+
+            assertThat(captor.getValue().updateExpression())
+                    .isEqualTo("SET #status = :openStatus, registeredCount = :zero, "
+                            + "GSI1PK = :gsi1pk, GSI1SK = :gsi1sk");
+            assertThat(captor.getValue().expressionAttributeValues())
+                    .containsEntry(":openStatus", AttributeValue.fromS("OPEN"))
+                    .containsEntry(":zero", AttributeValue.fromN("0"))
+                    .containsEntry(":gsi1pk", AttributeValue.fromS("OPPORTUNITIES#OPEN"))
+                    .containsEntry(":gsi1sk",
+                            AttributeValue.fromS("DATE#2026-08-01#OPPORTUNITY#" + OPPORTUNITY_ID));
+        }
+
+        @Test
+        @DisplayName("requires the item to exist and be currently CLOSED")
+        void conditionRequiresExistenceAndClosedStatus() {
+            when(dynamoDbClient.getItem(any(GetItemRequest.class)))
+                    .thenReturn(GetItemResponse.builder().item(itemClosed(null)).build());
+
+            repository.reopen(OPPORTUNITY_ID);
+
+            ArgumentCaptor<UpdateItemRequest> captor = ArgumentCaptor.forClass(UpdateItemRequest.class);
+            verify(dynamoDbClient).updateItem(captor.capture());
+
+            assertThat(captor.getValue().conditionExpression())
+                    .isEqualTo("attribute_exists(PK) AND attribute_exists(SK) AND #status = :closedStatus");
+            assertThat(captor.getValue().expressionAttributeValues())
+                    .containsEntry(":closedStatus", AttributeValue.fromS("CLOSED"));
+        }
+
+        @Test
+        @DisplayName("returns an opportunity with status OPEN, registeredCount 0 and availableSpots equal to capacity")
+        void returnsReopenedOpportunity() {
+            when(dynamoDbClient.getItem(any(GetItemRequest.class)))
+                    .thenReturn(GetItemResponse.builder().item(itemClosed(null)).build());
+
+            Opportunity result = repository.reopen(OPPORTUNITY_ID);
+
+            assertThat(result.status()).isEqualTo("OPEN");
+            assertThat(result.registeredCount()).isZero();
+            assertThat(result.availableSpots()).isEqualTo(result.capacity());
+        }
+
+        @Test
+        @DisplayName("preserves the image key from the stored record")
+        void preservesImageKey() {
+            when(dynamoDbClient.getItem(any(GetItemRequest.class)))
+                    .thenReturn(GetItemResponse.builder().item(itemClosed(IMAGE_KEY)).build());
+
+            Opportunity result = repository.reopen(OPPORTUNITY_ID);
+
+            assertThat(result.imageKey()).isEqualTo(IMAGE_KEY);
+        }
+
+        @Test
+        @DisplayName("preserves capacity and all other non-status fields")
+        void preservesRemainingFields() {
+            when(dynamoDbClient.getItem(any(GetItemRequest.class)))
+                    .thenReturn(GetItemResponse.builder().item(itemClosed(null)).build());
+
+            Opportunity result = repository.reopen(OPPORTUNITY_ID);
+
+            assertThat(result.opportunityId()).isEqualTo(OPPORTUNITY_ID);
+            assertThat(result.title()).isEqualTo("Beach Cleanup");
+            assertThat(result.description()).isEqualTo("Pick up litter");
+            assertThat(result.category()).isEqualTo("ENVIRONMENT");
+            assertThat(result.location()).isEqualTo("Seattle, WA");
+            assertThat(result.date()).isEqualTo("2026-08-01");
+            assertThat(result.organizationId()).isEqualTo(ORG_ID);
+            assertThat(result.organizationName()).isEqualTo("Green Earth");
+            assertThat(result.capacity()).isEqualTo(10);
+        }
+    }
+
     private static Map<String, AttributeValue> itemWithRegisteredCount(int registeredCount) {
         Map<String, AttributeValue> withCount = new HashMap<>(item(null));
         withCount.put("registeredCount", AttributeValue.fromN(String.valueOf(registeredCount)));
         return withCount;
+    }
+
+    private static Map<String, AttributeValue> itemClosed(String imageKey) {
+        Map<String, AttributeValue> closed = new HashMap<>(item(imageKey));
+        closed.put("status", AttributeValue.fromS("CLOSED"));
+        return closed;
     }
 
     private static Opportunity opportunity(String imageKey) {

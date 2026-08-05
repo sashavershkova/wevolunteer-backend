@@ -496,4 +496,62 @@ public class DynamoDbOpportunityRepository implements OpportunityRepository {
                 existingOpportunity.recurring()
         );
     }
+
+    @Override
+    public Opportunity reopen(String opportunityId) {
+        Opportunity existingOpportunity = findById(opportunityId)
+                .orElseThrow(() -> new NotFoundException("Opportunity not found: " + opportunityId));
+
+        String dateSortKey = "DATE#" + existingOpportunity.date() + "#OPPORTUNITY#" + opportunityId;
+
+        UpdateItemRequest request = UpdateItemRequest.builder()
+                .tableName(TABLE_NAME)
+                .key(Map.of(
+                        "PK", AttributeValue.fromS("OPPORTUNITY#" + opportunityId),
+                        "SK", AttributeValue.fromS("DETAILS")
+                ))
+                .updateExpression(
+                        "SET #status = :openStatus, registeredCount = :zero, "
+                                + "GSI1PK = :gsi1pk, GSI1SK = :gsi1sk")
+                .conditionExpression(
+                        "attribute_exists(PK) AND attribute_exists(SK) AND #status = :closedStatus")
+                .expressionAttributeNames(Map.of(
+                        "#status", "status"
+                ))
+                .expressionAttributeValues(Map.of(
+                        ":openStatus", AttributeValue.fromS("OPEN"),
+                        ":closedStatus", AttributeValue.fromS("CLOSED"),
+                        ":zero", AttributeValue.fromN("0"),
+                        ":gsi1pk", AttributeValue.fromS("OPPORTUNITIES#OPEN"),
+                        ":gsi1sk", AttributeValue.fromS(dateSortKey)
+                ))
+                .build();
+
+        try {
+            dynamoDbClient.updateItem(request);
+        } catch (ConditionalCheckFailedException e) {
+            throw new ConflictException("Only closed opportunities can be reopened.");
+        }
+
+        return new Opportunity(
+                existingOpportunity.opportunityId(),
+                existingOpportunity.title(),
+                existingOpportunity.description(),
+                existingOpportunity.category(),
+                existingOpportunity.location(),
+                existingOpportunity.date(),
+                "OPEN",
+                existingOpportunity.organizationId(),
+                existingOpportunity.organizationName(),
+                existingOpportunity.capacity(),
+                0,
+                existingOpportunity.capacity(),
+                existingOpportunity.time(),
+                existingOpportunity.startTime(),
+                existingOpportunity.endTime(),
+                existingOpportunity.whatYoullDo(),
+                existingOpportunity.recurring(),
+                existingOpportunity.imageKey()
+        );
+    }
 }
