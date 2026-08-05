@@ -69,6 +69,10 @@ public class WaitlistService {
                     "Opportunity '" + opportunityId + "' is not open for registration.");
         }
 
+        if (OpportunityDatePolicy.isPast(opportunity)) {
+            throw new ConflictException("Past opportunities are not open for waitlisting.");
+        }
+
         if (opportunity.availableSpots() > 0) {
             throw new ConflictException(
                     "Opportunity '" + opportunityId + "' still has open spots - register instead of joining the waitlist.");

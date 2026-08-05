@@ -17,6 +17,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -24,6 +25,7 @@ import org.mockito.ArgumentCaptor;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -38,6 +40,11 @@ class WaitlistServiceTest {
     private static final String OPPORTUNITY_ID = "opp-1";
     private static final String ORG_ID = "org-1";
     private static final String ORG_NAME = "Green Earth";
+
+    // A relative date, not a fixed literal: a hardcoded future date eventually becomes the past
+    // and starts failing every one of these tests on the wrong grounds (the new expiration
+    // check, not whatever each test actually covers).
+    private static final String OPPORTUNITY_DATE = LocalDate.now().plusDays(7).toString();
 
     @Mock
     private WaitlistRepository waitlistRepository;
@@ -71,7 +78,7 @@ class WaitlistServiceTest {
             assertThat(written.userId()).isEqualTo(USER_ID);
             assertThat(written.opportunityId()).isEqualTo(OPPORTUNITY_ID);
             assertThat(written.title()).isEqualTo("Beach Cleanup");
-            assertThat(written.date()).isEqualTo("2026-08-01");
+            assertThat(written.date()).isEqualTo(OPPORTUNITY_DATE);
             assertThat(written.location()).isEqualTo("Seattle, WA");
             assertThat(written.organizationId()).isEqualTo(ORG_ID);
             assertThat(written.organizationName()).isEqualTo(ORG_NAME);
@@ -106,6 +113,35 @@ class WaitlistServiceTest {
             assertThatThrownBy(() -> waitlistService.join(USER_ID, OPPORTUNITY_ID))
                     .isInstanceOf(ConflictException.class)
                     .hasMessageContaining("not open");
+
+            verifyNoInteractions(waitlistRepository);
+        }
+
+        @Test
+        @DisplayName("joins the waitlist when the opportunity's event date is today")
+        void joinsWhenDateIsToday() {
+            when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user()));
+            when(opportunityRepository.findById(OPPORTUNITY_ID))
+                    .thenReturn(Optional.of(
+                            opportunity("OPEN", 10, 10, LocalDate.now().toString())));
+
+            Waitlist result = waitlistService.join(USER_ID, OPPORTUNITY_ID);
+
+            assertThat(result).isNotNull();
+            verify(waitlistRepository).joinWaitlist(any(Waitlist.class));
+        }
+
+        @Test
+        @DisplayName("throws ConflictException and never joins when the opportunity's event date has passed")
+        void rejectsWhenExpired() {
+            when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user()));
+            when(opportunityRepository.findById(OPPORTUNITY_ID))
+                    .thenReturn(Optional.of(opportunity(
+                            "OPEN", 10, 10, LocalDate.now().minusDays(1).toString())));
+
+            assertThatThrownBy(() -> waitlistService.join(USER_ID, OPPORTUNITY_ID))
+                    .isInstanceOf(ConflictException.class)
+                    .hasMessage("Past opportunities are not open for waitlisting.");
 
             verifyNoInteractions(waitlistRepository);
         }
@@ -148,7 +184,7 @@ class WaitlistServiceTest {
 
             waitlistService.leave(USER_ID, OPPORTUNITY_ID);
 
-            verify(waitlistRepository).leaveWaitlist(USER_ID, OPPORTUNITY_ID, "2026-08-01");
+            verify(waitlistRepository).leaveWaitlist(USER_ID, OPPORTUNITY_ID, OPPORTUNITY_DATE);
         }
 
         @Test
@@ -174,7 +210,7 @@ class WaitlistServiceTest {
             when(opportunityRepository.findById(OPPORTUNITY_ID))
                     .thenReturn(Optional.of(opportunity("OPEN", 10, 10)));
             List<Waitlist> expected = List.of(new Waitlist(
-                    USER_ID, OPPORTUNITY_ID, "Beach Cleanup", "2026-08-01", "Seattle, WA",
+                    USER_ID, OPPORTUNITY_ID, "Beach Cleanup", OPPORTUNITY_DATE, "Seattle, WA",
                     ORG_ID, ORG_NAME, "Chelsea Pham", "chelsea@example.com", "2026-07-01T10:00:00"));
             when(waitlistRepository.findByOpportunityId(OPPORTUNITY_ID)).thenReturn(expected);
 
@@ -243,7 +279,7 @@ class WaitlistServiceTest {
         @DisplayName("returns whatever the repository provides")
         void returnsRepositoryResult() {
             Waitlist entry = new Waitlist(
-                    USER_ID, OPPORTUNITY_ID, "Beach Cleanup", "2026-08-01", "Seattle, WA",
+                    USER_ID, OPPORTUNITY_ID, "Beach Cleanup", OPPORTUNITY_DATE, "Seattle, WA",
                     ORG_ID, ORG_NAME, "Chelsea Pham", "chelsea@example.com", "2026-07-01T10:00:00");
             when(waitlistRepository.findByUserId(USER_ID)).thenReturn(List.of(entry));
 
@@ -258,13 +294,17 @@ class WaitlistServiceTest {
     }
 
     private static Opportunity opportunity(String status, int capacity, int registeredCount) {
+        return opportunity(status, capacity, registeredCount, OPPORTUNITY_DATE);
+    }
+
+    private static Opportunity opportunity(String status, int capacity, int registeredCount, String date) {
         return new Opportunity(
                 OPPORTUNITY_ID,
                 "Beach Cleanup",
                 "Pick up litter",
                 "ENVIRONMENT",
                 "Seattle, WA",
-                "2026-08-01",
+                date,
                 status,
                 ORG_ID,
                 ORG_NAME,

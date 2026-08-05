@@ -27,6 +27,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -35,6 +36,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
@@ -52,6 +54,11 @@ class RegistrationServiceTest {
     private static final String OPPORTUNITY_ID = "opp-1";
     private static final String ORG_ID = "org-1";
     private static final String ORG_NAME = "Green Earth";
+
+    // A relative date, not a fixed literal: a hardcoded future date eventually becomes the past
+    // and starts failing every one of these tests on the wrong grounds (the new expiration
+    // check, not whatever each test actually covers).
+    private static final String OPPORTUNITY_DATE = LocalDate.now().plusDays(7).toString();
 
     @Mock
     private RegistrationRepository registrationRepository;
@@ -246,7 +253,7 @@ class RegistrationServiceTest {
                     "chelsea@example.com",
                     OPPORTUNITY_ID,
                     "Beach Cleanup",
-                    "2026-08-01",
+                    OPPORTUNITY_DATE,
                     "Seattle, WA",
                     ORG_ID,
                     ORG_NAME);
@@ -273,7 +280,7 @@ class RegistrationServiceTest {
             assertThat(event.volunteerEmail()).isEqualTo("chelsea@example.com");
             assertThat(event.opportunityId()).isEqualTo(OPPORTUNITY_ID);
             assertThat(event.opportunityTitle()).isEqualTo("Beach Cleanup");
-            assertThat(event.opportunityDate()).isEqualTo("2026-08-01");
+            assertThat(event.opportunityDate()).isEqualTo(OPPORTUNITY_DATE);
             assertThat(event.organizationId()).isEqualTo(ORG_ID);
             assertThat(event.organizationName()).isEqualTo(ORG_NAME);
             assertThat(event.timestamp()).isNotNull().isBetween(before, after);
@@ -394,7 +401,7 @@ class RegistrationServiceTest {
             when(opportunityRepository.findById(OPPORTUNITY_ID))
                     .thenReturn(Optional.of(new Opportunity(
                             OPPORTUNITY_ID, "Beach Cleanup", "Pick up litter", "ENVIRONMENT",
-                            "Seattle, WA", "2026-08-01", "CLOSED", ORG_ID, ORG_NAME, 10, 10, 0,
+                            "Seattle, WA", OPPORTUNITY_DATE, "CLOSED", ORG_ID, ORG_NAME, 10, 10, 0,
                             null, "09:00", "12:00", List.of("Sort and organize donations", "Help set up the distribution area"), false)));
 
             registrationService.register(new RegisterRequest(USER_ID, OPPORTUNITY_ID));
@@ -402,6 +409,36 @@ class RegistrationServiceTest {
             verify(registrationRepository).registerUserForOpportunity(
                     anyString(), anyString(), anyString(), anyString(), anyString(),
                     anyString(), anyString(), anyString(), anyString());
+        }
+
+        @Test
+        @DisplayName("succeeds when the opportunity's event date is today")
+        void succeedsWhenDateIsToday() {
+            when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user()));
+            when(opportunityRepository.findById(OPPORTUNITY_ID))
+                    .thenReturn(Optional.of(opportunity(10, 3, LocalDate.now().toString())));
+
+            registrationService.register(new RegisterRequest(USER_ID, OPPORTUNITY_ID));
+
+            verify(registrationRepository).registerUserForOpportunity(
+                    anyString(), anyString(), anyString(), anyString(), anyString(),
+                    anyString(), anyString(), anyString(), anyString());
+        }
+
+        @Test
+        @DisplayName("throws ConflictException and never calls the repository when the opportunity's event date has passed")
+        void rejectsWhenExpired() {
+            when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user()));
+            when(opportunityRepository.findById(OPPORTUNITY_ID))
+                    .thenReturn(Optional.of(
+                            opportunity(10, 3, LocalDate.now().minusDays(1).toString())));
+
+            assertThatThrownBy(() ->
+                    registrationService.register(new RegisterRequest(USER_ID, OPPORTUNITY_ID)))
+                    .isInstanceOf(ConflictException.class)
+                    .hasMessage("Past opportunities are not open for registration.");
+
+            verifyNoInteractions(registrationRepository, notificationPublisher);
         }
     }
 
@@ -419,7 +456,7 @@ class RegistrationServiceTest {
             registrationService.cancelRegistration(USER_ID, OPPORTUNITY_ID);
 
             verify(registrationRepository)
-                    .cancelRegistration(USER_ID, OPPORTUNITY_ID, "2026-08-01");
+                    .cancelRegistration(USER_ID, OPPORTUNITY_ID, OPPORTUNITY_DATE);
         }
 
         @Test
@@ -470,7 +507,7 @@ class RegistrationServiceTest {
             assertThat(event.volunteerEmail()).isEqualTo("chelsea@example.com");
             assertThat(event.opportunityId()).isEqualTo(OPPORTUNITY_ID);
             assertThat(event.opportunityTitle()).isEqualTo("Beach Cleanup");
-            assertThat(event.opportunityDate()).isEqualTo("2026-08-01");
+            assertThat(event.opportunityDate()).isEqualTo(OPPORTUNITY_DATE);
             assertThat(event.organizationId()).isEqualTo(ORG_ID);
             assertThat(event.organizationName()).isEqualTo(ORG_NAME);
             assertThat(event.timestamp()).isNotNull().isBetween(before, after);
@@ -487,7 +524,7 @@ class RegistrationServiceTest {
 
             InOrder inOrder = inOrder(registrationRepository, notificationPublisher);
             inOrder.verify(registrationRepository)
-                    .cancelRegistration(USER_ID, OPPORTUNITY_ID, "2026-08-01");
+                    .cancelRegistration(USER_ID, OPPORTUNITY_ID, OPPORTUNITY_DATE);
             inOrder.verify(notificationPublisher).publish(any(NotificationEvent.class));
         }
 
@@ -500,7 +537,7 @@ class RegistrationServiceTest {
             doThrow(new ConflictException("Registration not found for user '" + USER_ID
                     + "' and opportunity '" + OPPORTUNITY_ID + "'."))
                     .when(registrationRepository)
-                    .cancelRegistration(USER_ID, OPPORTUNITY_ID, "2026-08-01");
+                    .cancelRegistration(USER_ID, OPPORTUNITY_ID, OPPORTUNITY_DATE);
 
             assertThatThrownBy(() ->
                     registrationService.cancelRegistration(USER_ID, OPPORTUNITY_ID))
@@ -527,11 +564,11 @@ class RegistrationServiceTest {
                     "jordan@example.com",
                     OPPORTUNITY_ID,
                     "Beach Cleanup",
-                    "2026-08-01",
+                    OPPORTUNITY_DATE,
                     "Seattle, WA",
                     ORG_ID,
                     ORG_NAME);
-            verify(waitlistRepository).leaveWaitlist("user-2", OPPORTUNITY_ID, "2026-08-01");
+            verify(waitlistRepository).leaveWaitlist("user-2", OPPORTUNITY_ID, OPPORTUNITY_DATE);
 
             ArgumentCaptor<NotificationEvent> captor = ArgumentCaptor.forClass(NotificationEvent.class);
             verify(notificationPublisher, times(2)).publish(captor.capture());
@@ -543,7 +580,7 @@ class RegistrationServiceTest {
             assertThat(promotedEvent.volunteerEmail()).isEqualTo("jordan@example.com");
             assertThat(promotedEvent.opportunityId()).isEqualTo(OPPORTUNITY_ID);
             assertThat(promotedEvent.opportunityTitle()).isEqualTo("Beach Cleanup");
-            assertThat(promotedEvent.opportunityDate()).isEqualTo("2026-08-01");
+            assertThat(promotedEvent.opportunityDate()).isEqualTo(OPPORTUNITY_DATE);
             assertThat(promotedEvent.organizationId()).isEqualTo(ORG_ID);
             assertThat(promotedEvent.organizationName()).isEqualTo(ORG_NAME);
         }
@@ -578,10 +615,34 @@ class RegistrationServiceTest {
                     + "' is no longer open or has reached capacity."))
                     .when(registrationRepository).registerUserForOpportunity(
                             "user-2", "Jordan Miles", "jordan@example.com", OPPORTUNITY_ID,
-                            "Beach Cleanup", "2026-08-01", "Seattle, WA", ORG_ID, ORG_NAME);
+                            "Beach Cleanup", OPPORTUNITY_DATE, "Seattle, WA", ORG_ID, ORG_NAME);
 
             registrationService.cancelRegistration(USER_ID, OPPORTUNITY_ID);
 
+            verify(waitlistRepository, never())
+                    .leaveWaitlist(anyString(), anyString(), anyString());
+
+            ArgumentCaptor<NotificationEvent> captor = ArgumentCaptor.forClass(NotificationEvent.class);
+            verify(notificationPublisher, times(1)).publish(captor.capture());
+            assertThat(captor.getValue().eventType())
+                    .isEqualTo(NotificationEventType.REGISTRATION_CANCELLED);
+        }
+
+        @Test
+        @DisplayName("does not promote a waitlisted volunteer when the opportunity's event date has passed")
+        void doesNotPromoteWhenOpportunityExpired() {
+            when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user()));
+            when(opportunityRepository.findById(OPPORTUNITY_ID))
+                    .thenReturn(Optional.of(
+                            opportunity(10, 3, LocalDate.now().minusDays(1).toString())));
+            when(waitlistRepository.findByOpportunityId(OPPORTUNITY_ID))
+                    .thenReturn(List.of(waitlistEntry("user-2", "Jordan Miles", "jordan@example.com")));
+
+            registrationService.cancelRegistration(USER_ID, OPPORTUNITY_ID);
+
+            verify(registrationRepository, never()).registerUserForOpportunity(
+                    eq("user-2"), anyString(), anyString(), anyString(), anyString(),
+                    anyString(), anyString(), anyString(), anyString());
             verify(waitlistRepository, never())
                     .leaveWaitlist(anyString(), anyString(), anyString());
 
@@ -649,7 +710,7 @@ class RegistrationServiceTest {
             assertThat(event.volunteerEmail()).isEqualTo("alice@example.com");
             assertThat(event.opportunityId()).isEqualTo(OPPORTUNITY_ID);
             assertThat(event.opportunityTitle()).isEqualTo("Beach Cleanup");
-            assertThat(event.opportunityDate()).isEqualTo("2026-08-01");
+            assertThat(event.opportunityDate()).isEqualTo(OPPORTUNITY_DATE);
             assertThat(event.organizationId()).isEqualTo(ORG_ID);
             assertThat(event.organizationName()).isEqualTo(ORG_NAME);
             assertThat(event.timestamp()).isNotNull().isBetween(before, after);
@@ -743,13 +804,17 @@ class RegistrationServiceTest {
     }
 
     private static Opportunity opportunity(int capacity, int registeredCount) {
+        return opportunity(capacity, registeredCount, OPPORTUNITY_DATE);
+    }
+
+    private static Opportunity opportunity(int capacity, int registeredCount, String date) {
         return new Opportunity(
                 OPPORTUNITY_ID,
                 "Beach Cleanup",
                 "Pick up litter",
                 "ENVIRONMENT",
                 "Seattle, WA",
-                "2026-08-01",
+                date,
                 "OPEN",
                 ORG_ID,
                 ORG_NAME,
@@ -766,7 +831,7 @@ class RegistrationServiceTest {
                 "Pick up litter",
                 "ENVIRONMENT",
                 "Seattle, WA",
-                "2026-08-01",
+                OPPORTUNITY_DATE,
                 "OPEN",
                 ORG_ID,
                 ORG_NAME,
@@ -782,7 +847,7 @@ class RegistrationServiceTest {
                 userId,
                 OPPORTUNITY_ID,
                 "Beach Cleanup",
-                "2026-08-01",
+                OPPORTUNITY_DATE,
                 "Seattle, WA",
                 ORG_ID,
                 ORG_NAME,
@@ -792,7 +857,7 @@ class RegistrationServiceTest {
     }
 
     private static Registration registration(String userId, String opportunityId) {
-        return registrationWithDate(userId, opportunityId, "2026-08-01");
+        return registrationWithDate(userId, opportunityId, OPPORTUNITY_DATE);
     }
 
     private static Registration registrationWithDate(String userId, String opportunityId, String date) {

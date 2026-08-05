@@ -16,6 +16,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import com.wevolunteer.backend.dto.RegisterRequest;
 import com.wevolunteer.backend.dto.RegisterResponse;
+import com.wevolunteer.backend.exception.ConflictException;
 import com.wevolunteer.backend.exception.ForbiddenException;
 import com.wevolunteer.backend.exception.NotFoundException;
 
@@ -106,6 +107,10 @@ public class RegistrationService {
                 .orElseThrow(() ->
                         new NotFoundException("Opportunity not found: " + request.opportunityId()));
 
+        if (OpportunityDatePolicy.isPast(opportunity)) {
+            throw new ConflictException("Past opportunities are not open for registration.");
+        }
+
         registrationRepository.registerUserForOpportunity(
                 user.userId(),
                 user.name(),
@@ -188,6 +193,13 @@ public class RegistrationService {
         if (waitlist.isEmpty()) {
             return;
         }
+
+        if (OpportunityDatePolicy.isPast(opportunity)) {
+            log.warn("Skipped waitlist promotion for opportunityId={}: opportunity date has passed",
+                    opportunity.opportunityId());
+            return;
+        }
+
         Waitlist next = waitlist.get(0);
 
         try {
