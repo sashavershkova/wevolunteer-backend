@@ -63,12 +63,13 @@ public class UserController {
         return profileResponseMapper.toResponse(userService.getById(jwt.getSubject()));
     }
 
-    @PatchMapping("/users/{userId}")
-    public UserProfileResponse updateUser(
-            @PathVariable String userId,
+    @PatchMapping("/users/me")
+    public UserProfileResponse updateCurrentUser(
+            @AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody UpdateUserRequest request
     ) {
-        return profileResponseMapper.toResponse(userService.updateUser(userId, request));
+        return profileResponseMapper.toResponse(
+                userService.updateUser(jwt.getSubject(), request));
     }
 
     @DeleteMapping("/users/{userId}")

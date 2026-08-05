@@ -115,39 +115,78 @@ class UserServiceTest {
         }
     }
 
-    @Nested
-    @DisplayName("updateUser")
-    class UpdateUser {
+@Nested
+@DisplayName("updateUser")
+class UpdateUser {
 
-        @Test
-        @DisplayName("maps the request onto a User and delegates to update")
-        void mapsRequestAndUpdates() {
-            UpdateUserRequest request =
-                    new UpdateUserRequest("New Name", "new@example.com", "ORGANIZATION");
-            when(userRepository.update(any(User.class))).thenAnswer(call -> call.getArgument(0));
+    @Test
+    @DisplayName("maps the request's name and email onto the existing user, preserving the existing role")
+    void mapsRequestButPreservesExistingRole() {
+        when(userRepository.findById(USER_ID))
+                .thenReturn(Optional.of(user(USER_ID)));
+        UpdateUserRequest request =
+                new UpdateUserRequest("New Name", "new@example.com", "ORGANIZATION");
+        when(userRepository.update(any(User.class))).thenAnswer(call -> call.getArgument(0));
 
-            User result = userService.updateUser(USER_ID, request);
+        User result = userService.updateUser(USER_ID, request);
 
-            ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
-            verify(userRepository).update(captor.capture());
+        ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).update(captor.capture());
 
-            assertThat(captor.getValue()).isEqualTo(
-                    new User(USER_ID, "New Name", "new@example.com", "ORGANIZATION"));
-            assertThat(result).isEqualTo(captor.getValue());
-        }
-
-        @Test
-        @DisplayName("does not verify the user exists before updating")
-        void doesNotCheckExistenceFirst() {
-            UpdateUserRequest request =
-                    new UpdateUserRequest("New Name", "new@example.com", "ORGANIZATION");
-            when(userRepository.update(any(User.class))).thenAnswer(call -> call.getArgument(0));
-
-            userService.updateUser(USER_ID, request);
-
-            verify(userRepository, never()).findById(any());
-        }
+        // Role in the captured/persisted user is "VOLUNTEER" (the user's existing
+        // role from the repository), not "ORGANIZATION" (what the request asked
+        // for) - a self-service edit must never be able to change role.
+        assertThat(captor.getValue()).isEqualTo(
+                new User(USER_ID, "New Name", "new@example.com", "VOLUNTEER"));
+        assertThat(result).isEqualTo(captor.getValue());
     }
+
+    @Test
+    @DisplayName("ignores the request's role entirely, even when it matches a valid role value")
+    void ignoresRequestRoleEvenWhenValid() {
+        when(userRepository.findById(USER_ID))
+                .thenReturn(Optional.of(user(USER_ID)));
+        UpdateUserRequest request =
+                new UpdateUserRequest("New Name", "new@example.com", "VOLUNTEER");
+        when(userRepository.update(any(User.class))).thenAnswer(call -> call.getArgument(0));
+
+        userService.updateUser(USER_ID, request);
+
+        ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).update(captor.capture());
+        assertThat(captor.getValue().role()).isEqualTo("VOLUNTEER");
+    }
+
+    @Test
+    @DisplayName("looks up the existing user before updating, to resolve the role to preserve")
+    void looksUpExistingUserFirst() {
+        when(userRepository.findById(USER_ID))
+                .thenReturn(Optional.of(user(USER_ID)));
+        UpdateUserRequest request =
+                new UpdateUserRequest("New Name", "new@example.com", "ORGANIZATION");
+        when(userRepository.update(any(User.class))).thenAnswer(call -> call.getArgument(0));
+
+        userService.updateUser(USER_ID, request);
+
+        InOrder inOrder = inOrder(userRepository);
+        inOrder.verify(userRepository).findById(USER_ID);
+        inOrder.verify(userRepository).update(any(User.class));
+    }
+
+    @Test
+    @DisplayName("throws NotFoundException and does not update when the user does not exist")
+    void throwsWhenUserMissing() {
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.empty());
+        UpdateUserRequest request =
+                new UpdateUserRequest("New Name", "new@example.com", "ORGANIZATION");
+
+        assertThatThrownBy(() -> userService.updateUser(USER_ID, request))
+                .isInstanceOf(NotFoundException.class)
+                .hasMessage("User not found: " + USER_ID);
+
+        verify(userRepository, never()).update(any());
+    }
+}
 
     @Nested
     @DisplayName("deleteUser")

@@ -39,16 +39,22 @@ public class UserService {
         return userRepository.save(user);
     }
 
-    public User updateUser(String userId, UpdateUserRequest request) {
-        User user = new User(
-                userId,
-                request.name(),
-                request.email(),
-                request.role()
-        );
+public User updateUser(String userId, UpdateUserRequest request) {
+    User existing = getById(userId);
 
-        return userRepository.update(user);
-    }
+    // Role is intentionally never taken from the request - it must only ever
+    // change through a dedicated, explicitly-authorized path (none exists yet),
+    // never as a side effect of a volunteer/organization editing their own name
+    // or email.
+    User user = new User(
+            userId,
+            request.name(),
+            request.email(),
+            existing.role()
+    );
+
+    return userRepository.update(user);
+}
 
     public void deleteUser(String userId) {
         getById(userId);
