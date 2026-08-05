@@ -8,12 +8,14 @@ import com.wevolunteer.backend.exception.NotFoundException;
 import com.wevolunteer.backend.model.Opportunity;
 import com.wevolunteer.backend.model.Registration;
 import com.wevolunteer.backend.model.User;
+import com.wevolunteer.backend.model.Waitlist;
 import com.wevolunteer.backend.notification.NotificationEvent;
 import com.wevolunteer.backend.notification.NotificationEventType;
 import com.wevolunteer.backend.notification.NotificationPublisher;
 import com.wevolunteer.backend.repository.OpportunityRepository;
 import com.wevolunteer.backend.repository.RegistrationRepository;
 import com.wevolunteer.backend.repository.UserRepository;
+import com.wevolunteer.backend.repository.WaitlistRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -62,6 +64,9 @@ class RegistrationServiceTest {
 
     @Mock
     private NotificationPublisher notificationPublisher;
+
+    @Mock
+    private WaitlistRepository waitlistRepository;
 
     @InjectMocks
     private RegistrationService registrationService;
@@ -503,6 +508,88 @@ class RegistrationServiceTest {
 
             verifyNoInteractions(notificationPublisher);
         }
+
+        @Test
+        @DisplayName("promotes the oldest waitlisted volunteer into the freed spot")
+        void promotesOldestWaitlistedVolunteerWhenWaitlistNonEmpty() {
+            when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user()));
+            when(opportunityRepository.findById(OPPORTUNITY_ID))
+                    .thenReturn(Optional.of(opportunity(10, 3)));
+            when(waitlistRepository.findByOpportunityId(OPPORTUNITY_ID)).thenReturn(List.of(
+                    waitlistEntry("user-2", "Jordan Miles", "jordan@example.com"),
+                    waitlistEntry("user-3", "Amara Kim", "amara@example.com")));
+
+            registrationService.cancelRegistration(USER_ID, OPPORTUNITY_ID);
+
+            verify(registrationRepository).registerUserForOpportunity(
+                    "user-2",
+                    "Jordan Miles",
+                    "jordan@example.com",
+                    OPPORTUNITY_ID,
+                    "Beach Cleanup",
+                    "2026-08-01",
+                    "Seattle, WA",
+                    ORG_ID,
+                    ORG_NAME);
+            verify(waitlistRepository).leaveWaitlist("user-2", OPPORTUNITY_ID, "2026-08-01");
+
+            ArgumentCaptor<NotificationEvent> captor = ArgumentCaptor.forClass(NotificationEvent.class);
+            verify(notificationPublisher, times(2)).publish(captor.capture());
+
+            NotificationEvent promotedEvent = captor.getAllValues().get(1);
+            assertThat(promotedEvent.eventType()).isEqualTo(NotificationEventType.WAITLIST_PROMOTED);
+            assertThat(promotedEvent.userId()).isEqualTo("user-2");
+            assertThat(promotedEvent.volunteerName()).isEqualTo("Jordan Miles");
+            assertThat(promotedEvent.volunteerEmail()).isEqualTo("jordan@example.com");
+            assertThat(promotedEvent.opportunityId()).isEqualTo(OPPORTUNITY_ID);
+            assertThat(promotedEvent.opportunityTitle()).isEqualTo("Beach Cleanup");
+            assertThat(promotedEvent.opportunityDate()).isEqualTo("2026-08-01");
+            assertThat(promotedEvent.organizationId()).isEqualTo(ORG_ID);
+            assertThat(promotedEvent.organizationName()).isEqualTo(ORG_NAME);
+        }
+
+        @Test
+        @DisplayName("does nothing extra when the waitlist is empty")
+        void doesNothingExtraWhenWaitlistEmpty() {
+            when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user()));
+            when(opportunityRepository.findById(OPPORTUNITY_ID))
+                    .thenReturn(Optional.of(opportunity(10, 3)));
+            when(waitlistRepository.findByOpportunityId(OPPORTUNITY_ID)).thenReturn(List.of());
+
+            registrationService.cancelRegistration(USER_ID, OPPORTUNITY_ID);
+
+            verify(registrationRepository, never()).registerUserForOpportunity(
+                    anyString(), anyString(), anyString(), anyString(), anyString(),
+                    anyString(), anyString(), anyString(), anyString());
+            verify(waitlistRepository, never())
+                    .leaveWaitlist(anyString(), anyString(), anyString());
+            verify(notificationPublisher, times(1)).publish(any(NotificationEvent.class));
+        }
+
+        @Test
+        @DisplayName("cancellation still succeeds when the promotion write is rejected")
+        void cancellationSucceedsWhenPromotionWriteThrowsConflictException() {
+            when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user()));
+            when(opportunityRepository.findById(OPPORTUNITY_ID))
+                    .thenReturn(Optional.of(opportunity(10, 3)));
+            when(waitlistRepository.findByOpportunityId(OPPORTUNITY_ID))
+                    .thenReturn(List.of(waitlistEntry("user-2", "Jordan Miles", "jordan@example.com")));
+            doThrow(new ConflictException("Opportunity '" + OPPORTUNITY_ID
+                    + "' is no longer open or has reached capacity."))
+                    .when(registrationRepository).registerUserForOpportunity(
+                            "user-2", "Jordan Miles", "jordan@example.com", OPPORTUNITY_ID,
+                            "Beach Cleanup", "2026-08-01", "Seattle, WA", ORG_ID, ORG_NAME);
+
+            registrationService.cancelRegistration(USER_ID, OPPORTUNITY_ID);
+
+            verify(waitlistRepository, never())
+                    .leaveWaitlist(anyString(), anyString(), anyString());
+
+            ArgumentCaptor<NotificationEvent> captor = ArgumentCaptor.forClass(NotificationEvent.class);
+            verify(notificationPublisher, times(1)).publish(captor.capture());
+            assertThat(captor.getValue().eventType())
+                    .isEqualTo(NotificationEventType.REGISTRATION_CANCELLED);
+        }
     }
 
     @Nested
@@ -525,7 +612,7 @@ class RegistrationServiceTest {
             verify(registrationRepository).cancelRegistrationForOpportunityClose("user-2", OPPORTUNITY_ID);
             verify(registrationRepository, never())
                     .cancelRegistration(anyString(), anyString(), anyString());
-            verifyNoInteractions(opportunityRepository);
+            verifyNoInteractions(opportunityRepository, waitlistRepository);
         }
 
         @Test
@@ -688,6 +775,20 @@ class RegistrationServiceTest {
                 7,
                 time, startTime, endTime,
                 List.of("Sort and organize donations", "Help set up the distribution area"), false);
+    }
+
+    private static Waitlist waitlistEntry(String userId, String volunteerName, String email) {
+        return new Waitlist(
+                userId,
+                OPPORTUNITY_ID,
+                "Beach Cleanup",
+                "2026-08-01",
+                "Seattle, WA",
+                ORG_ID,
+                ORG_NAME,
+                volunteerName,
+                email,
+                "2026-07-01T10:00:00");
     }
 
     private static Registration registration(String userId, String opportunityId) {

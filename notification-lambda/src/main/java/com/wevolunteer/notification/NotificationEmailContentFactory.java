@@ -14,6 +14,8 @@ public class NotificationEmailContentFactory {
             case REGISTRATION_CREATED -> registrationCreated(event);
             case REGISTRATION_CANCELLED -> registrationCancelled(event);
             case REGISTRATION_CANCELLED_BY_ORGANIZATION -> registrationCancelledByOrganization(event);
+            case WAITLIST_JOINED -> waitlistJoined(event);
+            case WAITLIST_PROMOTED -> waitlistPromoted(event);
         };
     }
 
@@ -73,6 +75,46 @@ public class NotificationEmailContentFactory {
                 + "We know this may be disappointing, and we're grateful for your willingness to "
                 + "help.</p>"
                 + "<p>We hope to see you at another opportunity soon!<br>The WeVolunteer Team</p>";
+
+        return new EmailContent(subject, plainTextBody, htmlBody);
+    }
+
+    private EmailContent waitlistJoined(NotificationEvent event) {
+        String subject = "You're on the waitlist: " + event.opportunityTitle();
+
+        String plainTextBody = "Hi " + event.volunteerName() + ",\n\n"
+                + "You're on the waitlist for \"" + event.opportunityTitle() + "\" on "
+                + event.opportunityDate() + " with " + event.organizationName()
+                + ". We'll email you right away if a spot opens up.\n\n"
+                + "Thank you for volunteering!\n"
+                + "The WeVolunteer Team";
+
+        String htmlBody = "<p>Hi " + escapeHtml(event.volunteerName()) + ",</p>"
+                + "<p>You're on the waitlist for <strong>" + escapeHtml(event.opportunityTitle())
+                + "</strong> on " + escapeHtml(event.opportunityDate()) + " with "
+                + escapeHtml(event.organizationName())
+                + ". We'll email you right away if a spot opens up.</p>"
+                + "<p>Thank you for volunteering!<br>The WeVolunteer Team</p>";
+
+        return new EmailContent(subject, plainTextBody, htmlBody);
+    }
+
+    private EmailContent waitlistPromoted(NotificationEvent event) {
+        String subject = "You're in: " + event.opportunityTitle();
+
+        String plainTextBody = "Hi " + event.volunteerName() + ",\n\n"
+                + "Good news - a spot opened up and you're now registered for \""
+                + event.opportunityTitle() + "\" on " + event.opportunityDate() + " with "
+                + event.organizationName() + ".\n\n"
+                + "Thank you for volunteering!\n"
+                + "The WeVolunteer Team";
+
+        String htmlBody = "<p>Hi " + escapeHtml(event.volunteerName()) + ",</p>"
+                + "<p>Good news - a spot opened up and you're now registered for <strong>"
+                + escapeHtml(event.opportunityTitle()) + "</strong> on "
+                + escapeHtml(event.opportunityDate()) + " with "
+                + escapeHtml(event.organizationName()) + ".</p>"
+                + "<p>Thank you for volunteering!<br>The WeVolunteer Team</p>";
 
         return new EmailContent(subject, plainTextBody, htmlBody);
     }

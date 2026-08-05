@@ -3,12 +3,16 @@ package com.wevolunteer.backend.service;
 import com.wevolunteer.backend.model.Opportunity;
 import com.wevolunteer.backend.model.Registration;
 import com.wevolunteer.backend.model.User;
+import com.wevolunteer.backend.model.Waitlist;
 import com.wevolunteer.backend.notification.NotificationEvent;
 import com.wevolunteer.backend.notification.NotificationEventType;
 import com.wevolunteer.backend.notification.NotificationPublisher;
 import com.wevolunteer.backend.repository.OpportunityRepository;
 import com.wevolunteer.backend.repository.RegistrationRepository;
 import com.wevolunteer.backend.repository.UserRepository;
+import com.wevolunteer.backend.repository.WaitlistRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import com.wevolunteer.backend.dto.RegisterRequest;
 import com.wevolunteer.backend.dto.RegisterResponse;
@@ -21,20 +25,25 @@ import java.util.List;
 @Service
 public class RegistrationService {
 
+    private static final Logger log = LoggerFactory.getLogger(RegistrationService.class);
+
     private final RegistrationRepository registrationRepository;
     private final UserRepository userRepository;
     private final OpportunityRepository opportunityRepository;
+    private final WaitlistRepository waitlistRepository;
     private final NotificationPublisher notificationPublisher;
 
     public RegistrationService(
             RegistrationRepository registrationRepository,
             UserRepository userRepository,
             OpportunityRepository opportunityRepository,
+            WaitlistRepository waitlistRepository,
             NotificationPublisher notificationPublisher) {
 
         this.registrationRepository = registrationRepository;
         this.userRepository = userRepository;
         this.opportunityRepository = opportunityRepository;
+        this.waitlistRepository = waitlistRepository;
         this.notificationPublisher = notificationPublisher;
     }
 
@@ -158,6 +167,55 @@ public class RegistrationService {
                 opportunity.organizationName(),
                 Instant.now()
         ));
+
+        promoteNextWaitlistedVolunteer(opportunity);
+    }
+
+    /**
+     * Best-effort: called only from a volunteer's own {@link #cancelRegistration}, never from
+     * {@link #cancelAllRegistrationsForOpportunity} (an organization closing an opportunity has
+     * no spot to promote anyone into). The cancellation above has already committed by this
+     * point, so any failure here is logged and swallowed rather than thrown - a promotion race
+     * or write failure must never make a successful cancellation look like it failed.
+     */
+    private void promoteNextWaitlistedVolunteer(Opportunity opportunity) {
+        List<Waitlist> waitlist = waitlistRepository.findByOpportunityId(opportunity.opportunityId());
+        if (waitlist.isEmpty()) {
+            return;
+        }
+        Waitlist next = waitlist.get(0);
+
+        try {
+            registrationRepository.registerUserForOpportunity(
+                    next.userId(),
+                    next.volunteerName(),
+                    next.email(),
+                    opportunity.opportunityId(),
+                    opportunity.title(),
+                    opportunity.date(),
+                    opportunity.location(),
+                    opportunity.organizationId(),
+                    opportunity.organizationName()
+            );
+
+            waitlistRepository.leaveWaitlist(next.userId(), opportunity.opportunityId(), next.date());
+
+            notificationPublisher.publish(new NotificationEvent(
+                    NotificationEventType.WAITLIST_PROMOTED,
+                    next.userId(),
+                    next.volunteerName(),
+                    next.email(),
+                    opportunity.opportunityId(),
+                    opportunity.title(),
+                    opportunity.date(),
+                    opportunity.organizationId(),
+                    opportunity.organizationName(),
+                    Instant.now()
+            ));
+        } catch (RuntimeException e) {
+            log.warn("Skipped waitlist promotion for user={} opportunityId={}: {}",
+                    next.userId(), opportunity.opportunityId(), e.getMessage());
+        }
     }
 
     /**

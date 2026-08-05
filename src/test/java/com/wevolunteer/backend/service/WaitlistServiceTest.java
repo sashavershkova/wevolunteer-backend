@@ -6,6 +6,9 @@ import com.wevolunteer.backend.exception.NotFoundException;
 import com.wevolunteer.backend.model.Opportunity;
 import com.wevolunteer.backend.model.User;
 import com.wevolunteer.backend.model.Waitlist;
+import com.wevolunteer.backend.notification.NotificationEvent;
+import com.wevolunteer.backend.notification.NotificationEventType;
+import com.wevolunteer.backend.notification.NotificationPublisher;
 import com.wevolunteer.backend.repository.OpportunityRepository;
 import com.wevolunteer.backend.repository.UserRepository;
 import com.wevolunteer.backend.repository.WaitlistRepository;
@@ -17,6 +20,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -47,6 +51,9 @@ class WaitlistServiceTest {
 
     @Mock
     private OpportunityRepository opportunityRepository;
+
+    @Mock
+    private NotificationPublisher notificationPublisher;
 
     @InjectMocks
     private WaitlistService waitlistService;
@@ -83,6 +90,33 @@ class WaitlistServiceTest {
         }
 
         @Test
+        @DisplayName("publishes exactly one WAITLIST_JOINED event built from the current user and opportunity")
+        void publishesWaitlistJoinedEvent() {
+            when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user()));
+            when(opportunityRepository.findById(OPPORTUNITY_ID))
+                    .thenReturn(Optional.of(opportunity("OPEN", 10, 10)));
+
+            Instant before = Instant.now();
+            waitlistService.join(USER_ID, OPPORTUNITY_ID);
+            Instant after = Instant.now();
+
+            ArgumentCaptor<NotificationEvent> captor = ArgumentCaptor.forClass(NotificationEvent.class);
+            verify(notificationPublisher).publish(captor.capture());
+
+            NotificationEvent event = captor.getValue();
+            assertThat(event.eventType()).isEqualTo(NotificationEventType.WAITLIST_JOINED);
+            assertThat(event.userId()).isEqualTo(USER_ID);
+            assertThat(event.volunteerName()).isEqualTo("Chelsea Pham");
+            assertThat(event.volunteerEmail()).isEqualTo("chelsea@example.com");
+            assertThat(event.opportunityId()).isEqualTo(OPPORTUNITY_ID);
+            assertThat(event.opportunityTitle()).isEqualTo("Beach Cleanup");
+            assertThat(event.opportunityDate()).isEqualTo("2026-08-01");
+            assertThat(event.organizationId()).isEqualTo(ORG_ID);
+            assertThat(event.organizationName()).isEqualTo(ORG_NAME);
+            assertThat(event.timestamp()).isNotNull().isBetween(before, after);
+        }
+
+        @Test
         @DisplayName("throws ConflictException and never joins when the opportunity still has open spots")
         void rejectsWhenSpotsAvailable() {
             when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user()));
@@ -93,7 +127,7 @@ class WaitlistServiceTest {
                     .isInstanceOf(ConflictException.class)
                     .hasMessageContaining("register instead");
 
-            verifyNoInteractions(waitlistRepository);
+            verifyNoInteractions(waitlistRepository, notificationPublisher);
         }
 
         @Test
@@ -107,7 +141,7 @@ class WaitlistServiceTest {
                     .isInstanceOf(ConflictException.class)
                     .hasMessageContaining("not open");
 
-            verifyNoInteractions(waitlistRepository);
+            verifyNoInteractions(waitlistRepository, notificationPublisher);
         }
 
         @Test
@@ -119,7 +153,7 @@ class WaitlistServiceTest {
                     .isInstanceOf(NotFoundException.class)
                     .hasMessage("User not found: " + USER_ID);
 
-            verifyNoInteractions(opportunityRepository, waitlistRepository);
+            verifyNoInteractions(opportunityRepository, waitlistRepository, notificationPublisher);
         }
 
         @Test
@@ -132,7 +166,7 @@ class WaitlistServiceTest {
                     .isInstanceOf(NotFoundException.class)
                     .hasMessage("Opportunity not found: " + OPPORTUNITY_ID);
 
-            verifyNoInteractions(waitlistRepository);
+            verifyNoInteractions(waitlistRepository, notificationPublisher);
         }
     }
 

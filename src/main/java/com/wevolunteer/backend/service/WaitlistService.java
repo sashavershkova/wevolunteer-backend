@@ -6,11 +6,15 @@ import com.wevolunteer.backend.exception.NotFoundException;
 import com.wevolunteer.backend.model.Opportunity;
 import com.wevolunteer.backend.model.User;
 import com.wevolunteer.backend.model.Waitlist;
+import com.wevolunteer.backend.notification.NotificationEvent;
+import com.wevolunteer.backend.notification.NotificationEventType;
+import com.wevolunteer.backend.notification.NotificationPublisher;
 import com.wevolunteer.backend.repository.OpportunityRepository;
 import com.wevolunteer.backend.repository.UserRepository;
 import com.wevolunteer.backend.repository.WaitlistRepository;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -20,15 +24,18 @@ public class WaitlistService {
     private final WaitlistRepository waitlistRepository;
     private final UserRepository userRepository;
     private final OpportunityRepository opportunityRepository;
+    private final NotificationPublisher notificationPublisher;
 
     public WaitlistService(
             WaitlistRepository waitlistRepository,
             UserRepository userRepository,
-            OpportunityRepository opportunityRepository) {
+            OpportunityRepository opportunityRepository,
+            NotificationPublisher notificationPublisher) {
 
         this.waitlistRepository = waitlistRepository;
         this.userRepository = userRepository;
         this.opportunityRepository = opportunityRepository;
+        this.notificationPublisher = notificationPublisher;
     }
 
     public List<Waitlist> getWaitlistByUserId(String userId) {
@@ -88,6 +95,19 @@ public class WaitlistService {
         );
 
         waitlistRepository.joinWaitlist(waitlist);
+
+        notificationPublisher.publish(new NotificationEvent(
+                NotificationEventType.WAITLIST_JOINED,
+                user.userId(),
+                user.name(),
+                user.email(),
+                opportunity.opportunityId(),
+                opportunity.title(),
+                opportunity.date(),
+                opportunity.organizationId(),
+                opportunity.organizationName(),
+                Instant.now()
+        ));
 
         return waitlist;
     }
