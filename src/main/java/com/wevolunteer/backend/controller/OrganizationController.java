@@ -3,11 +3,13 @@ package com.wevolunteer.backend.controller;
 import com.wevolunteer.backend.model.Opportunity;
 import com.wevolunteer.backend.model.Organization;
 import com.wevolunteer.backend.model.Registration;
+import com.wevolunteer.backend.model.Waitlist;
 import com.wevolunteer.backend.service.OpportunityResponseMapper;
 import com.wevolunteer.backend.service.OpportunityService;
 import com.wevolunteer.backend.service.ProfileResponseMapper;
 import com.wevolunteer.backend.service.OrganizationService;
 import com.wevolunteer.backend.service.RegistrationService;
+import com.wevolunteer.backend.service.WaitlistService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -33,6 +35,7 @@ public class OrganizationController {
     private final OrganizationService organizationService;
     private final OpportunityService opportunityService;
     private final RegistrationService registrationService;
+    private final WaitlistService waitlistService;
     private final OpportunityResponseMapper opportunityResponseMapper;
     private final ProfileResponseMapper profileResponseMapper;
 
@@ -40,11 +43,13 @@ public class OrganizationController {
             OrganizationService organizationService,
             OpportunityService opportunityService,
             RegistrationService registrationService,
+            WaitlistService waitlistService,
             OpportunityResponseMapper opportunityResponseMapper,
             ProfileResponseMapper profileResponseMapper) {
         this.organizationService = organizationService;
         this.opportunityService = opportunityService;
         this.registrationService = registrationService;
+        this.waitlistService = waitlistService;
         this.opportunityResponseMapper = opportunityResponseMapper;
         this.profileResponseMapper = profileResponseMapper;
     }
@@ -148,6 +153,15 @@ public class OrganizationController {
             @PathVariable String opportunityId) {
 
         return registrationService.getRegistrationsForOrganizationOpportunity(
+                opportunityId, jwt.getSubject());
+    }
+
+    @GetMapping("/organizations/me/opportunities/{opportunityId}/waitlist")
+    public List<Waitlist> getOrganizationOpportunityWaitlist(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable String opportunityId) {
+
+        return waitlistService.getWaitlistForOrganizationOpportunity(
                 opportunityId, jwt.getSubject());
     }
 }

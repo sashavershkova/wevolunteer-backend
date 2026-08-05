@@ -1,6 +1,7 @@
 package com.wevolunteer.backend.service;
 
 import com.wevolunteer.backend.exception.ConflictException;
+import com.wevolunteer.backend.exception.ForbiddenException;
 import com.wevolunteer.backend.exception.NotFoundException;
 import com.wevolunteer.backend.model.Opportunity;
 import com.wevolunteer.backend.model.User;
@@ -32,6 +33,26 @@ public class WaitlistService {
 
     public List<Waitlist> getWaitlistByUserId(String userId) {
         return waitlistRepository.findByUserId(userId);
+    }
+
+    /**
+     * The opportunity-side sort key is {@code WAITLIST#<joinedAt>#<userId>}, so the repository
+     * already returns entries oldest-joined-first - the volunteers' actual waitlist position.
+     */
+    public List<Waitlist> getWaitlistForOrganizationOpportunity(
+            String opportunityId,
+            String organizationId) {
+
+        Opportunity opportunity = opportunityRepository.findById(opportunityId)
+                .orElseThrow(() ->
+                        new NotFoundException("Opportunity not found: " + opportunityId));
+
+        if (!opportunity.organizationId().equals(organizationId)) {
+            throw new ForbiddenException(
+                    "Only the organization that owns this opportunity can view its waitlist.");
+        }
+
+        return waitlistRepository.findByOpportunityId(opportunityId);
     }
 
     public Waitlist join(String userId, String opportunityId) {

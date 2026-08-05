@@ -7,11 +7,13 @@ import com.wevolunteer.backend.dto.OrganizationProfileResponse;
 import com.wevolunteer.backend.model.Opportunity;
 import com.wevolunteer.backend.model.Organization;
 import com.wevolunteer.backend.model.Registration;
+import com.wevolunteer.backend.model.Waitlist;
 import com.wevolunteer.backend.service.OpportunityResponseMapper;
 import com.wevolunteer.backend.service.OpportunityService;
 import com.wevolunteer.backend.service.ProfileResponseMapper;
 import com.wevolunteer.backend.service.OrganizationService;
 import com.wevolunteer.backend.service.RegistrationService;
+import com.wevolunteer.backend.service.WaitlistService;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
@@ -53,6 +55,9 @@ class OrganizationControllerTest {
 
     @Mock
     private RegistrationService registrationService;
+
+    @Mock
+    private WaitlistService waitlistService;
 
     @Mock
     private Jwt jwt;
@@ -187,6 +192,49 @@ class OrganizationControllerTest {
     }
 
     @Test
+    @DisplayName("getOrganizationOpportunityWaitlist resolves the organization from the JWT "
+            + "subject and delegates to the service")
+    void getOrganizationOpportunityWaitlistResolvesOrganizationFromJwtSubject() {
+        when(jwt.getSubject()).thenReturn(ORGANIZATION_ID);
+        List<Waitlist> expected = List.of(waitlist());
+        when(waitlistService.getWaitlistForOrganizationOpportunity("opp-1", ORGANIZATION_ID))
+                .thenReturn(expected);
+
+        List<Waitlist> result =
+                organizationController.getOrganizationOpportunityWaitlist(jwt, "opp-1");
+
+        assertThat(result).isSameAs(expected);
+    }
+
+    @Test
+    @DisplayName("getOrganizationOpportunityWaitlist passes the opportunityId and JWT "
+            + "subject through exactly once, with no other service interaction")
+    void getOrganizationOpportunityWaitlistPassesArgumentsThrough() {
+        when(jwt.getSubject()).thenReturn(ORGANIZATION_ID);
+        when(waitlistService.getWaitlistForOrganizationOpportunity("opp-1", ORGANIZATION_ID))
+                .thenReturn(List.of());
+
+        organizationController.getOrganizationOpportunityWaitlist(jwt, "opp-1");
+
+        verify(waitlistService)
+                .getWaitlistForOrganizationOpportunity("opp-1", ORGANIZATION_ID);
+        verifyNoMoreInteractions(waitlistService);
+    }
+
+    @Test
+    @DisplayName("getOrganizationOpportunityWaitlist is mapped to "
+            + "GET /organizations/me/opportunities/{opportunityId}/waitlist")
+    void getOrganizationOpportunityWaitlistIsMappedToExpectedRoute() throws NoSuchMethodException {
+        Method method = OrganizationController.class.getMethod(
+                "getOrganizationOpportunityWaitlist", Jwt.class, String.class);
+        org.springframework.web.bind.annotation.GetMapping mapping =
+                method.getAnnotation(org.springframework.web.bind.annotation.GetMapping.class);
+
+        assertThat(mapping.value())
+                .containsExactly("/organizations/me/opportunities/{opportunityId}/waitlist");
+    }
+
+    @Test
     @DisplayName("updateCurrentOrganization uses the JWT subject as the organization ID and delegates to the service")
     void updateCurrentOrganizationUsesJwtSubjectAsOrganizationId() {
         when(jwt.getSubject()).thenReturn(ORGANIZATION_ID);
@@ -270,6 +318,20 @@ class OrganizationControllerTest {
                 0,
                 10,
                 null, "09:00", "12:00", List.of("Sort and organize donations", "Help set up the distribution area"), false);
+    }
+
+    private static Waitlist waitlist() {
+        return new Waitlist(
+                "user-1",
+                "opp-1",
+                "Beach Cleanup",
+                "2026-08-01",
+                "Seattle, WA",
+                ORGANIZATION_ID,
+                "Green Earth",
+                "Chelsea Pham",
+                "chelsea@example.com",
+                "2026-07-24T10:00:00");
     }
 
     private static Registration registration() {

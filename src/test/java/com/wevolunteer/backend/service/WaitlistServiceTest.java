@@ -1,6 +1,7 @@
 package com.wevolunteer.backend.service;
 
 import com.wevolunteer.backend.exception.ConflictException;
+import com.wevolunteer.backend.exception.ForbiddenException;
 import com.wevolunteer.backend.exception.NotFoundException;
 import com.wevolunteer.backend.model.Opportunity;
 import com.wevolunteer.backend.model.User;
@@ -23,6 +24,8 @@ import org.mockito.ArgumentCaptor;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -158,6 +161,77 @@ class WaitlistServiceTest {
                     .hasMessage("Opportunity not found: " + OPPORTUNITY_ID);
 
             verifyNoInteractions(waitlistRepository);
+        }
+    }
+
+    @Nested
+    @DisplayName("getWaitlistForOrganizationOpportunity")
+    class GetWaitlistForOrganizationOpportunity {
+
+        @Test
+        @DisplayName("owner receives the waitlist for their opportunity")
+        void ownerReceivesWaitlist() {
+            when(opportunityRepository.findById(OPPORTUNITY_ID))
+                    .thenReturn(Optional.of(opportunity("OPEN", 10, 10)));
+            List<Waitlist> expected = List.of(new Waitlist(
+                    USER_ID, OPPORTUNITY_ID, "Beach Cleanup", "2026-08-01", "Seattle, WA",
+                    ORG_ID, ORG_NAME, "Chelsea Pham", "chelsea@example.com", "2026-07-01T10:00:00"));
+            when(waitlistRepository.findByOpportunityId(OPPORTUNITY_ID)).thenReturn(expected);
+
+            assertThat(waitlistService
+                    .getWaitlistForOrganizationOpportunity(OPPORTUNITY_ID, ORG_ID))
+                    .isSameAs(expected);
+        }
+
+        @Test
+        @DisplayName("passes the exact opportunityId through to the waitlist repository")
+        void passesOpportunityIdThrough() {
+            when(opportunityRepository.findById(OPPORTUNITY_ID))
+                    .thenReturn(Optional.of(opportunity("OPEN", 10, 10)));
+            when(waitlistRepository.findByOpportunityId(OPPORTUNITY_ID)).thenReturn(List.of());
+
+            waitlistService.getWaitlistForOrganizationOpportunity(OPPORTUNITY_ID, ORG_ID);
+
+            verify(waitlistRepository).findByOpportunityId(OPPORTUNITY_ID);
+        }
+
+        @Test
+        @DisplayName("throws NotFoundException when the opportunity does not exist")
+        void throwsWhenOpportunityMissing() {
+            when(opportunityRepository.findById(OPPORTUNITY_ID)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> waitlistService
+                    .getWaitlistForOrganizationOpportunity(OPPORTUNITY_ID, ORG_ID))
+                    .isInstanceOf(NotFoundException.class)
+                    .hasMessage("Opportunity not found: " + OPPORTUNITY_ID);
+
+            verifyNoInteractions(waitlistRepository);
+        }
+
+        @Test
+        @DisplayName("a caller from a different organization receives ForbiddenException")
+        void rejectsNonOwner() {
+            when(opportunityRepository.findById(OPPORTUNITY_ID))
+                    .thenReturn(Optional.of(opportunity("OPEN", 10, 10)));
+
+            assertThatThrownBy(() -> waitlistService
+                    .getWaitlistForOrganizationOpportunity(OPPORTUNITY_ID, "org-99"))
+                    .isInstanceOf(ForbiddenException.class)
+                    .hasMessage("Only the organization that owns this opportunity can view "
+                            + "its waitlist.");
+        }
+
+        @Test
+        @DisplayName("does not query the waitlist repository when ownership fails")
+        void skipsQueryWhenNotOwner() {
+            when(opportunityRepository.findById(OPPORTUNITY_ID))
+                    .thenReturn(Optional.of(opportunity("OPEN", 10, 10)));
+
+            assertThatThrownBy(() -> waitlistService
+                    .getWaitlistForOrganizationOpportunity(OPPORTUNITY_ID, "org-99"))
+                    .isInstanceOf(ForbiddenException.class);
+
+            verify(waitlistRepository, never()).findByOpportunityId(anyString());
         }
     }
 
