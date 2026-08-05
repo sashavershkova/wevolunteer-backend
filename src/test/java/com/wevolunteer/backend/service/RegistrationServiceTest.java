@@ -510,7 +510,7 @@ class RegistrationServiceTest {
         }
 
         @Test
-        @DisplayName("promotes the oldest waitlisted volunteer into the freed spot")
+        @DisplayName("promotes the oldest waitlisted volunteer into the freed spot, publishing REGISTRATION_CREATED")
         void promotesOldestWaitlistedVolunteerWhenWaitlistNonEmpty() {
             when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user()));
             when(opportunityRepository.findById(OPPORTUNITY_ID))
@@ -537,7 +537,7 @@ class RegistrationServiceTest {
             verify(notificationPublisher, times(2)).publish(captor.capture());
 
             NotificationEvent promotedEvent = captor.getAllValues().get(1);
-            assertThat(promotedEvent.eventType()).isEqualTo(NotificationEventType.WAITLIST_PROMOTED);
+            assertThat(promotedEvent.eventType()).isEqualTo(NotificationEventType.REGISTRATION_CREATED);
             assertThat(promotedEvent.userId()).isEqualTo("user-2");
             assertThat(promotedEvent.volunteerName()).isEqualTo("Jordan Miles");
             assertThat(promotedEvent.volunteerEmail()).isEqualTo("jordan@example.com");

@@ -177,6 +177,11 @@ public class RegistrationService {
      * no spot to promote anyone into). The cancellation above has already committed by this
      * point, so any failure here is logged and swallowed rather than thrown - a promotion race
      * or write failure must never make a successful cancellation look like it failed.
+     *
+     * <p>Publishes the same {@code REGISTRATION_CREATED} event a normal self-registration
+     * publishes, rather than a dedicated waitlist-promotion event type - a promoted volunteer
+     * simply is registered, and this deliberately reuses the notification pipeline's existing,
+     * already-deployed template instead of requiring a Lambda redeploy for a new event type.
      */
     private void promoteNextWaitlistedVolunteer(Opportunity opportunity) {
         List<Waitlist> waitlist = waitlistRepository.findByOpportunityId(opportunity.opportunityId());
@@ -201,7 +206,7 @@ public class RegistrationService {
             waitlistRepository.leaveWaitlist(next.userId(), opportunity.opportunityId(), next.date());
 
             notificationPublisher.publish(new NotificationEvent(
-                    NotificationEventType.WAITLIST_PROMOTED,
+                    NotificationEventType.REGISTRATION_CREATED,
                     next.userId(),
                     next.volunteerName(),
                     next.email(),
