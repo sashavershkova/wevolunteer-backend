@@ -1,6 +1,8 @@
 package com.wevolunteer.backend.exception;
 
 import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -13,6 +15,8 @@ import java.util.List;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(NotFoundException.class)
     public ResponseEntity<ErrorResponse> handleNotFound(
@@ -38,6 +42,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler({ConditionalCheckFailedException.class, TransactionCanceledException.class})
     public ResponseEntity<ErrorResponse> handleDynamoDbConflict(
             Exception ex, HttpServletRequest request) {
+
+        // Logged at warn, not error: a conditional-check failure is usually a real concurrent
+        // write rather than a defect, but the cancellation reasons are the only way to tell
+        // which condition actually tripped.
+        log.warn("DynamoDB conflict for {} {}: {}",
+                request.getMethod(), request.getRequestURI(), ex.getMessage());
 
         return buildResponse(
                 HttpStatus.CONFLICT,
@@ -74,6 +84,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleUnexpected(
             Exception ex, HttpServletRequest request) {
+
+        // The response body is deliberately vague so internals are never exposed to a client.
+        // That only works if the real cause is recorded somewhere, though -- without this, a 500
+        // is undiagnosable from outside the process.
+        log.error("Unhandled exception for {} {}",
+                request.getMethod(), request.getRequestURI(), ex);
 
         return buildResponse(
                 HttpStatus.INTERNAL_SERVER_ERROR,
