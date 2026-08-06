@@ -50,6 +50,18 @@ class NotificationEmailContentFactoryTest {
                 opportunityTitle, opportunityDate, organizationName);
     }
 
+    private static NotificationEvent waitlistJoinedEvent(
+            String volunteerName, String opportunityTitle, String opportunityDate, String organizationName) {
+        return event(NotificationEventType.WAITLIST_JOINED, volunteerName, opportunityTitle,
+                opportunityDate, organizationName);
+    }
+
+    private static NotificationEvent waitlistLeftEvent(
+            String volunteerName, String opportunityTitle, String opportunityDate, String organizationName) {
+        return event(NotificationEventType.WAITLIST_LEFT, volunteerName, opportunityTitle,
+                opportunityDate, organizationName);
+    }
+
     @Test
     @DisplayName("builds a friendly subject and includes volunteer name, opportunity title, date, and organization")
     void buildsRegistrationCreatedContent() {
@@ -77,6 +89,8 @@ class NotificationEmailContentFactoryTest {
                 registrationCancelledEvent("Jane Volunteer", "Food Bank Shift", "2026-08-10", "Seattle Food Bank"),
                 registrationCancelledByOrganizationEvent(
                         "Jane Volunteer", "Food Bank Shift", "2026-08-10", "Seattle Food Bank"),
+                waitlistJoinedEvent("Jane Volunteer", "Food Bank Shift", "2026-08-10", "Seattle Food Bank"),
+                waitlistLeftEvent("Jane Volunteer", "Food Bank Shift", "2026-08-10", "Seattle Food Bank"),
         };
 
         for (NotificationEvent event : events) {
@@ -176,6 +190,86 @@ class NotificationEmailContentFactoryTest {
     @DisplayName("escapes HTML-significant characters in REGISTRATION_CANCELLED_BY_ORGANIZATION content")
     void escapesHtmlInRegistrationCancelledByOrganizationContent() {
         NotificationEvent event = registrationCancelledByOrganizationEvent(
+                "Jane <script>alert('x')</script>",
+                "Bake & Sell \"Charity\" Event",
+                "2026-08-10 <tag>",
+                "O'Brien's <Shelter>");
+
+        EmailContent content = factory.create(event);
+
+        assertFalse(content.htmlBody().contains("<script>"));
+        assertTrue(content.htmlBody().contains("&lt;script&gt;"));
+        assertTrue(content.htmlBody().contains("Bake &amp; Sell &quot;Charity&quot; Event"));
+        assertTrue(content.htmlBody().contains("2026-08-10 &lt;tag&gt;"));
+        assertTrue(content.htmlBody().contains("O&#39;Brien&#39;s &lt;Shelter&gt;"));
+    }
+
+    @Test
+    @DisplayName("builds WAITLIST_JOINED content telling the volunteer they'll be emailed when a spot opens")
+    void buildsWaitlistJoinedContent() {
+        NotificationEvent event = waitlistJoinedEvent(
+                "Jane Volunteer", "Food Bank Shift", "2026-08-10", "Seattle Food Bank");
+
+        EmailContent content = factory.create(event);
+
+        assertTrue(content.subject().toLowerCase().contains("waitlist"));
+        assertTrue(content.subject().contains("Food Bank Shift"));
+        assertTrue(content.plainTextBody().contains("Jane Volunteer"));
+        assertTrue(content.plainTextBody().contains("Food Bank Shift"));
+        assertTrue(content.plainTextBody().contains("2026-08-10"));
+        assertTrue(content.plainTextBody().contains("Seattle Food Bank"));
+        assertTrue(content.plainTextBody().toLowerCase().contains("waitlist"));
+        assertTrue(content.htmlBody().contains("Jane Volunteer"));
+        assertTrue(content.htmlBody().contains("Food Bank Shift"));
+        assertTrue(content.htmlBody().contains("2026-08-10"));
+        assertTrue(content.htmlBody().contains("Seattle Food Bank"));
+        assertTrue(content.htmlBody().toLowerCase().contains("waitlist"));
+    }
+
+    @Test
+    @DisplayName("escapes HTML-significant characters in WAITLIST_JOINED content")
+    void escapesHtmlInWaitlistJoinedContent() {
+        NotificationEvent event = waitlistJoinedEvent(
+                "Jane <script>alert('x')</script>",
+                "Bake & Sell \"Charity\" Event",
+                "2026-08-10 <tag>",
+                "O'Brien's <Shelter>");
+
+        EmailContent content = factory.create(event);
+
+        assertFalse(content.htmlBody().contains("<script>"));
+        assertTrue(content.htmlBody().contains("&lt;script&gt;"));
+        assertTrue(content.htmlBody().contains("Bake &amp; Sell &quot;Charity&quot; Event"));
+        assertTrue(content.htmlBody().contains("2026-08-10 &lt;tag&gt;"));
+        assertTrue(content.htmlBody().contains("O&#39;Brien&#39;s &lt;Shelter&gt;"));
+    }
+
+    @Test
+    @DisplayName("builds WAITLIST_LEFT content letting the volunteer know they can rejoin anytime")
+    void buildsWaitlistLeftContent() {
+        NotificationEvent event = waitlistLeftEvent(
+                "Jane Volunteer", "Food Bank Shift", "2026-08-10", "Seattle Food Bank");
+
+        EmailContent content = factory.create(event);
+
+        assertTrue(content.subject().toLowerCase().contains("waitlist"));
+        assertTrue(content.subject().contains("Food Bank Shift"));
+        assertTrue(content.plainTextBody().contains("Jane Volunteer"));
+        assertTrue(content.plainTextBody().contains("Food Bank Shift"));
+        assertTrue(content.plainTextBody().contains("2026-08-10"));
+        assertTrue(content.plainTextBody().contains("Seattle Food Bank"));
+        assertTrue(content.plainTextBody().toLowerCase().contains("removed"));
+        assertTrue(content.htmlBody().contains("Jane Volunteer"));
+        assertTrue(content.htmlBody().contains("Food Bank Shift"));
+        assertTrue(content.htmlBody().contains("2026-08-10"));
+        assertTrue(content.htmlBody().contains("Seattle Food Bank"));
+        assertTrue(content.htmlBody().toLowerCase().contains("removed"));
+    }
+
+    @Test
+    @DisplayName("escapes HTML-significant characters in WAITLIST_LEFT content")
+    void escapesHtmlInWaitlistLeftContent() {
+        NotificationEvent event = waitlistLeftEvent(
                 "Jane <script>alert('x')</script>",
                 "Bake & Sell \"Charity\" Event",
                 "2026-08-10 <tag>",
