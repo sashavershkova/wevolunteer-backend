@@ -24,6 +24,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -111,6 +112,46 @@ class DynamoDbWaitlistRepositoryTest {
                     ArgumentCaptor.forClass(TransactWriteItemsRequest.class);
             verify(dynamoDbClient, times(1)).transactWriteItems(captor.capture());
             assertThat(captor.getValue().transactItems()).hasSize(1);
+        }
+    }
+
+    @Nested
+    @DisplayName("leaveWaitlistForOpportunityClose")
+    class LeaveWaitlistForOpportunityClose {
+
+        @Test
+        @DisplayName("deletes both the user-side and opportunity-side entries in one transaction, with no query")
+        void deletesBothSidesWithoutQuerying() {
+            repository.leaveWaitlistForOpportunityClose(
+                    USER_ID, OPPORTUNITY_ID, "2026-08-01", "2026-07-29T10:00:00");
+
+            ArgumentCaptor<TransactWriteItemsRequest> captor =
+                    ArgumentCaptor.forClass(TransactWriteItemsRequest.class);
+            verify(dynamoDbClient).transactWriteItems(captor.capture());
+            verify(dynamoDbClient, never()).query(any(QueryRequest.class));
+
+            List<Map<String, AttributeValue>> keys = captor.getValue().transactItems().stream()
+                    .map(item -> item.delete().key())
+                    .toList();
+
+            assertThat(keys).hasSize(2);
+            assertThat(keys.get(0).get("PK").s()).isEqualTo("USER#" + USER_ID);
+            assertThat(keys.get(0).get("SK").s()).isEqualTo("WAITLIST#2026-08-01#" + OPPORTUNITY_ID);
+            assertThat(keys.get(1).get("PK").s()).isEqualTo("OPPORTUNITY#" + OPPORTUNITY_ID);
+            assertThat(keys.get(1).get("SK").s())
+                    .isEqualTo("WAITLIST#2026-07-29T10:00:00#" + USER_ID);
+        }
+
+        @Test
+        @DisplayName("wraps a transaction cancellation in a ConflictException")
+        void wrapsCancellationAsConflict() {
+            when(dynamoDbClient.transactWriteItems(any(TransactWriteItemsRequest.class)))
+                    .thenThrow(TransactionCanceledException.builder().build());
+
+            assertThatThrownBy(() -> repository.leaveWaitlistForOpportunityClose(
+                    USER_ID, OPPORTUNITY_ID, "2026-08-01", "2026-07-29T10:00:00"))
+                    .isInstanceOf(ConflictException.class)
+                    .hasMessageContaining("Unable to remove waitlist entry");
         }
     }
 

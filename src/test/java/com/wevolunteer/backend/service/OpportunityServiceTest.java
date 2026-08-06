@@ -55,6 +55,9 @@ class OpportunityServiceTest {
     @Mock
     private RegistrationService registrationService;
 
+    @Mock
+    private WaitlistService waitlistService;
+
     @InjectMocks
     private OpportunityService opportunityService;
 
@@ -322,6 +325,51 @@ class OpportunityServiceTest {
 
             verify(opportunityRepository, never()).close(anyString());
         }
+
+        @Test
+        @DisplayName("clears the waitlist for the opportunity before closing it")
+        void clearsWaitlistBeforeClosing() {
+            Opportunity open = opportunity(OPPORTUNITY_ID, "OPEN", 20, 2);
+            when(opportunityRepository.findById(OPPORTUNITY_ID)).thenReturn(Optional.of(open));
+            when(opportunityRepository.close(OPPORTUNITY_ID))
+                    .thenReturn(opportunity(OPPORTUNITY_ID, "CLOSED", 20, 0));
+
+            opportunityService.closeOpportunity(OPPORTUNITY_ID, ORG_ID);
+
+            InOrder inOrder = inOrder(waitlistService, opportunityRepository);
+            inOrder.verify(waitlistService).removeWaitlistForOpportunityClose(open);
+            inOrder.verify(opportunityRepository).close(OPPORTUNITY_ID);
+        }
+
+        @Test
+        @DisplayName("does not attempt waitlist cleanup when ownership validation fails")
+        void skipsWaitlistCleanupWhenNotOwner() {
+            when(opportunityRepository.findById(OPPORTUNITY_ID))
+                    .thenReturn(Optional.of(opportunity(OPPORTUNITY_ID, "OPEN", 10, 3)));
+
+            assertThatThrownBy(() ->
+                    opportunityService.closeOpportunity(OPPORTUNITY_ID, "org-99"))
+                    .isInstanceOf(ForbiddenException.class);
+
+            verifyNoInteractions(waitlistService);
+        }
+
+        @Test
+        @DisplayName("propagates a waitlist cleanup failure and never closes the opportunity")
+        void propagatesWaitlistCleanupFailureWithoutClosing() {
+            Opportunity open = opportunity(OPPORTUNITY_ID, "OPEN", 20, 2);
+            when(opportunityRepository.findById(OPPORTUNITY_ID)).thenReturn(Optional.of(open));
+            doThrow(new RuntimeException("DynamoDB transaction failed"))
+                    .when(waitlistService)
+                    .removeWaitlistForOpportunityClose(open);
+
+            assertThatThrownBy(() ->
+                    opportunityService.closeOpportunity(OPPORTUNITY_ID, ORG_ID))
+                    .isInstanceOf(RuntimeException.class)
+                    .hasMessage("DynamoDB transaction failed");
+
+            verify(opportunityRepository, never()).close(anyString());
+        }
     }
 
     @Nested
@@ -447,6 +495,20 @@ class OpportunityServiceTest {
 
             assertThat(result.registeredCount()).isZero();
             assertThat(result.availableSpots()).isEqualTo(result.capacity());
+        }
+
+        @Test
+        @DisplayName("does not restore registrations or waitlist entries - it only flips the repository's status")
+        void doesNotRestoreRegistrationsOrWaitlist() {
+            String futureDate = java.time.LocalDate.now().plusDays(1).toString();
+            when(opportunityRepository.findById(OPPORTUNITY_ID))
+                    .thenReturn(Optional.of(opportunity(OPPORTUNITY_ID, "CLOSED", 10, 0, futureDate)));
+            when(opportunityRepository.reopen(OPPORTUNITY_ID))
+                    .thenReturn(opportunity(OPPORTUNITY_ID, "OPEN", 10, 0, futureDate));
+
+            opportunityService.reopenOpportunity(OPPORTUNITY_ID, ORG_ID);
+
+            verifyNoInteractions(registrationService, waitlistService);
         }
     }
 

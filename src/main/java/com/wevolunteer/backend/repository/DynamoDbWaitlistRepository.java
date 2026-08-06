@@ -181,6 +181,44 @@ public class DynamoDbWaitlistRepository implements WaitlistRepository {
                 .build());
     }
 
+    @Override
+    public void leaveWaitlistForOpportunityClose(
+            String userId, String opportunityId, String opportunityDate, String joinedAt) {
+
+        Delete deleteUserWaitlistEntry = Delete.builder()
+                .tableName(TABLE_NAME)
+                .key(Map.of(
+                        "PK", AttributeValue.fromS("USER#" + userId),
+                        "SK", AttributeValue.fromS("WAITLIST#" + opportunityDate + "#" + opportunityId)
+                ))
+                .conditionExpression("attribute_exists(PK) AND attribute_exists(SK)")
+                .build();
+
+        Delete deleteOpportunityWaitlistEntry = Delete.builder()
+                .tableName(TABLE_NAME)
+                .key(Map.of(
+                        "PK", AttributeValue.fromS("OPPORTUNITY#" + opportunityId),
+                        "SK", AttributeValue.fromS("WAITLIST#" + joinedAt + "#" + userId)
+                ))
+                .conditionExpression("attribute_exists(PK) AND attribute_exists(SK)")
+                .build();
+
+        TransactWriteItemsRequest transaction = TransactWriteItemsRequest.builder()
+                .transactItems(
+                        TransactWriteItem.builder().delete(deleteUserWaitlistEntry).build(),
+                        TransactWriteItem.builder().delete(deleteOpportunityWaitlistEntry).build()
+                )
+                .build();
+
+        try {
+            dynamoDbClient.transactWriteItems(transaction);
+        } catch (TransactionCanceledException e) {
+            throw new ConflictException(
+                    "Unable to remove waitlist entry for user '" + userId + "' and opportunity '"
+                            + opportunityId + "' while closing the opportunity.");
+        }
+    }
+
     private Waitlist mapToWaitlist(Map<String, AttributeValue> item) {
         return new Waitlist(
                 getStringOrNull(item, "userId"),

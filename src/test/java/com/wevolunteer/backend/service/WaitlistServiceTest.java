@@ -347,6 +347,58 @@ class WaitlistServiceTest {
     }
 
     @Nested
+    @DisplayName("removeWaitlistForOpportunityClose")
+    class RemoveWaitlistForOpportunityClose {
+
+        @Test
+        @DisplayName("removes every waitlist entry found for the opportunity")
+        void removesEveryEntry() {
+            Opportunity opportunity = opportunity("CLOSED", 10, 0);
+            Waitlist first = waitlistEntry("user-2", "2026-07-01T10:00:00");
+            Waitlist second = waitlistEntry("user-3", "2026-07-02T10:00:00");
+            when(waitlistRepository.findByOpportunityId(OPPORTUNITY_ID))
+                    .thenReturn(List.of(first, second));
+
+            waitlistService.removeWaitlistForOpportunityClose(opportunity);
+
+            verify(waitlistRepository).leaveWaitlistForOpportunityClose(
+                    "user-2", OPPORTUNITY_ID, OPPORTUNITY_DATE, "2026-07-01T10:00:00");
+            verify(waitlistRepository).leaveWaitlistForOpportunityClose(
+                    "user-3", OPPORTUNITY_ID, OPPORTUNITY_DATE, "2026-07-02T10:00:00");
+        }
+
+        @Test
+        @DisplayName("does nothing when the opportunity has no waitlist entries")
+        void doesNothingWhenEmpty() {
+            Opportunity opportunity = opportunity("CLOSED", 10, 0);
+            when(waitlistRepository.findByOpportunityId(OPPORTUNITY_ID)).thenReturn(List.of());
+
+            waitlistService.removeWaitlistForOpportunityClose(opportunity);
+
+            verify(waitlistRepository, never())
+                    .leaveWaitlistForOpportunityClose(anyString(), anyString(), anyString(), anyString());
+        }
+
+        @Test
+        @DisplayName("does not publish any notification")
+        void publishesNothing() {
+            Opportunity opportunity = opportunity("CLOSED", 10, 0);
+            when(waitlistRepository.findByOpportunityId(OPPORTUNITY_ID))
+                    .thenReturn(List.of(waitlistEntry("user-2", "2026-07-01T10:00:00")));
+
+            waitlistService.removeWaitlistForOpportunityClose(opportunity);
+
+            verifyNoInteractions(notificationPublisher);
+        }
+
+        private Waitlist waitlistEntry(String userId, String joinedAt) {
+            return new Waitlist(
+                    userId, OPPORTUNITY_ID, "Beach Cleanup", null, null,
+                    ORG_ID, ORG_NAME, "Volunteer", "volunteer@example.com", joinedAt);
+        }
+    }
+
+    @Nested
     @DisplayName("getWaitlistByUserId")
     class GetWaitlistByUserId {
 

@@ -140,4 +140,30 @@ public class WaitlistService {
                 Instant.now()
         ));
     }
+
+    /**
+     * Removes every waitlist entry for an opportunity as part of closing it, so a later reopen
+     * starts with a genuinely clean waitlist instead of leaving stale entries that would show a
+     * volunteer as still "Waitlisted" on an opportunity with open spots - and that could
+     * otherwise be wrongly picked up by future auto-promotion.
+     *
+     * <p>No notification is published here - whether a removed-by-close waitlist entry should
+     * get its own email is a deliberately deferred decision, separate from this data cleanup.
+     *
+     * <p>Each removal is its own transaction, mirroring
+     * {@link RegistrationService#cancelAllRegistrationsForOpportunity}: a failure partway
+     * through leaves the remaining entries removed rather than corrupting data, and the caller
+     * is responsible for not treating that as a successful close.
+     */
+    public void removeWaitlistForOpportunityClose(Opportunity opportunity) {
+        List<Waitlist> entries = waitlistRepository.findByOpportunityId(opportunity.opportunityId());
+
+        for (Waitlist entry : entries) {
+            waitlistRepository.leaveWaitlistForOpportunityClose(
+                    entry.userId(),
+                    opportunity.opportunityId(),
+                    opportunity.date(),
+                    entry.joinedAt());
+        }
+    }
 }

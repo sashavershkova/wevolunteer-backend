@@ -19,12 +19,15 @@ public class OpportunityService {
 
     private final OpportunityRepository opportunityRepository;
     private final RegistrationService registrationService;
+    private final WaitlistService waitlistService;
 
     public OpportunityService(
             OpportunityRepository opportunityRepository,
-            RegistrationService registrationService) {
+            RegistrationService registrationService,
+            WaitlistService waitlistService) {
         this.opportunityRepository = opportunityRepository;
         this.registrationService = registrationService;
+        this.waitlistService = waitlistService;
     }
 
     public Opportunity getById(String opportunityId) {
@@ -196,6 +199,10 @@ public class OpportunityService {
         // per affected volunteer) before flipping status so a cleanup failure leaves the
         // opportunity OPEN instead of silently reporting a successful close.
         registrationService.cancelAllRegistrationsForOpportunity(existingOpportunity);
+
+        // Also clear the waitlist, so a later reopen doesn't leave stale entries showing
+        // volunteers as still "Waitlisted" on an opportunity with open spots again.
+        waitlistService.removeWaitlistForOpportunityClose(existingOpportunity);
 
         return opportunityRepository.close(opportunityId);
     }
