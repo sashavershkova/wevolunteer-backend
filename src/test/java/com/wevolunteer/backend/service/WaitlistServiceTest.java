@@ -16,6 +16,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -29,9 +30,14 @@ import org.mockito.ArgumentCaptor;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -380,21 +386,104 @@ class WaitlistServiceTest {
         }
 
         @Test
-        @DisplayName("does not publish any notification")
-        void publishesNothing() {
+        @DisplayName("publishes exactly one WAITLIST_CANCELLED_BY_ORGANIZATION event for a single removed entry")
+        void publishesOneEventForOneEntry() {
+            Opportunity opportunity = opportunity("CLOSED", 10, 0);
+            when(waitlistRepository.findByOpportunityId(OPPORTUNITY_ID))
+                    .thenReturn(List.of(waitlistEntry("user-2", "2026-07-01T10:00:00")));
+
+            Instant before = Instant.now();
+            waitlistService.removeWaitlistForOpportunityClose(opportunity);
+            Instant after = Instant.now();
+
+            ArgumentCaptor<NotificationEvent> captor = ArgumentCaptor.forClass(NotificationEvent.class);
+            verify(notificationPublisher).publish(captor.capture());
+
+            NotificationEvent event = captor.getValue();
+            assertThat(event.eventType())
+                    .isEqualTo(NotificationEventType.WAITLIST_CANCELLED_BY_ORGANIZATION);
+            assertThat(event.userId()).isEqualTo("user-2");
+            assertThat(event.volunteerName()).isEqualTo("Volunteer");
+            assertThat(event.volunteerEmail()).isEqualTo("volunteer@example.com");
+            assertThat(event.opportunityId()).isEqualTo(OPPORTUNITY_ID);
+            assertThat(event.opportunityTitle()).isEqualTo("Beach Cleanup");
+            assertThat(event.opportunityDate()).isEqualTo(OPPORTUNITY_DATE);
+            assertThat(event.organizationId()).isEqualTo(ORG_ID);
+            assertThat(event.organizationName()).isEqualTo(ORG_NAME);
+            assertThat(event.timestamp()).isNotNull().isBetween(before, after);
+        }
+
+        @Test
+        @DisplayName("publishes one event per removed entry, each carrying that volunteer's own data")
+        void publishesOneEventPerEntry() {
+            Opportunity opportunity = opportunity("CLOSED", 10, 0);
+            when(waitlistRepository.findByOpportunityId(OPPORTUNITY_ID)).thenReturn(List.of(
+                    waitlistEntry("user-2", "Jordan Miles", "jordan@example.com", "2026-07-01T10:00:00"),
+                    waitlistEntry("user-3", "Amara Kim", "amara@example.com", "2026-07-02T10:00:00")));
+
+            waitlistService.removeWaitlistForOpportunityClose(opportunity);
+
+            ArgumentCaptor<NotificationEvent> captor = ArgumentCaptor.forClass(NotificationEvent.class);
+            verify(notificationPublisher, times(2)).publish(captor.capture());
+
+            assertThat(captor.getAllValues())
+                    .extracting(
+                            NotificationEvent::userId,
+                            NotificationEvent::volunteerName,
+                            NotificationEvent::volunteerEmail)
+                    .containsExactlyInAnyOrder(
+                            tuple("user-2", "Jordan Miles", "jordan@example.com"),
+                            tuple("user-3", "Amara Kim", "amara@example.com"));
+        }
+
+        @Test
+        @DisplayName("publishes a volunteer's event only after that volunteer's removal succeeds")
+        void publishesAfterEachRemovalSucceeds() {
             Opportunity opportunity = opportunity("CLOSED", 10, 0);
             when(waitlistRepository.findByOpportunityId(OPPORTUNITY_ID))
                     .thenReturn(List.of(waitlistEntry("user-2", "2026-07-01T10:00:00")));
 
             waitlistService.removeWaitlistForOpportunityClose(opportunity);
 
-            verifyNoInteractions(notificationPublisher);
+            InOrder inOrder = inOrder(waitlistRepository, notificationPublisher);
+            inOrder.verify(waitlistRepository).leaveWaitlistForOpportunityClose(
+                    "user-2", OPPORTUNITY_ID, OPPORTUNITY_DATE, "2026-07-01T10:00:00");
+            inOrder.verify(notificationPublisher).publish(any(NotificationEvent.class));
+        }
+
+        @Test
+        @DisplayName("does not publish for an entry whose removal fails, but keeps the event already published for an earlier one")
+        void skipsPublishForFailedRemoval() {
+            Opportunity opportunity = opportunity("CLOSED", 10, 0);
+            when(waitlistRepository.findByOpportunityId(OPPORTUNITY_ID)).thenReturn(List.of(
+                    waitlistEntry("user-2", "Jordan Miles", "jordan@example.com", "2026-07-01T10:00:00"),
+                    waitlistEntry("user-3", "Amara Kim", "amara@example.com", "2026-07-02T10:00:00")));
+            doNothing()
+                    .when(waitlistRepository)
+                    .leaveWaitlistForOpportunityClose(
+                            "user-2", OPPORTUNITY_ID, OPPORTUNITY_DATE, "2026-07-01T10:00:00");
+            doThrow(new RuntimeException("DynamoDB transaction failed"))
+                    .when(waitlistRepository)
+                    .leaveWaitlistForOpportunityClose(
+                            "user-3", OPPORTUNITY_ID, OPPORTUNITY_DATE, "2026-07-02T10:00:00");
+
+            assertThatThrownBy(() -> waitlistService.removeWaitlistForOpportunityClose(opportunity))
+                    .isInstanceOf(RuntimeException.class)
+                    .hasMessage("DynamoDB transaction failed");
+
+            ArgumentCaptor<NotificationEvent> captor = ArgumentCaptor.forClass(NotificationEvent.class);
+            verify(notificationPublisher, times(1)).publish(captor.capture());
+            assertThat(captor.getValue().userId()).isEqualTo("user-2");
         }
 
         private Waitlist waitlistEntry(String userId, String joinedAt) {
+            return waitlistEntry(userId, "Volunteer", "volunteer@example.com", joinedAt);
+        }
+
+        private Waitlist waitlistEntry(String userId, String volunteerName, String email, String joinedAt) {
             return new Waitlist(
                     userId, OPPORTUNITY_ID, "Beach Cleanup", null, null,
-                    ORG_ID, ORG_NAME, "Volunteer", "volunteer@example.com", joinedAt);
+                    ORG_ID, ORG_NAME, volunteerName, email, joinedAt);
         }
     }
 

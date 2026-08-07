@@ -62,6 +62,12 @@ class NotificationEmailContentFactoryTest {
                 opportunityDate, organizationName);
     }
 
+    private static NotificationEvent waitlistCancelledByOrganizationEvent(
+            String volunteerName, String opportunityTitle, String opportunityDate, String organizationName) {
+        return event(NotificationEventType.WAITLIST_CANCELLED_BY_ORGANIZATION, volunteerName,
+                opportunityTitle, opportunityDate, organizationName);
+    }
+
     @Test
     @DisplayName("builds a friendly subject and includes volunteer name, opportunity title, date, and organization")
     void buildsRegistrationCreatedContent() {
@@ -91,6 +97,8 @@ class NotificationEmailContentFactoryTest {
                         "Jane Volunteer", "Food Bank Shift", "2026-08-10", "Seattle Food Bank"),
                 waitlistJoinedEvent("Jane Volunteer", "Food Bank Shift", "2026-08-10", "Seattle Food Bank"),
                 waitlistLeftEvent("Jane Volunteer", "Food Bank Shift", "2026-08-10", "Seattle Food Bank"),
+                waitlistCancelledByOrganizationEvent(
+                        "Jane Volunteer", "Food Bank Shift", "2026-08-10", "Seattle Food Bank"),
         };
 
         for (NotificationEvent event : events) {
@@ -270,6 +278,49 @@ class NotificationEmailContentFactoryTest {
     @DisplayName("escapes HTML-significant characters in WAITLIST_LEFT content")
     void escapesHtmlInWaitlistLeftContent() {
         NotificationEvent event = waitlistLeftEvent(
+                "Jane <script>alert('x')</script>",
+                "Bake & Sell \"Charity\" Event",
+                "2026-08-10 <tag>",
+                "O'Brien's <Shelter>");
+
+        EmailContent content = factory.create(event);
+
+        assertFalse(content.htmlBody().contains("<script>"));
+        assertTrue(content.htmlBody().contains("&lt;script&gt;"));
+        assertTrue(content.htmlBody().contains("Bake &amp; Sell &quot;Charity&quot; Event"));
+        assertTrue(content.htmlBody().contains("2026-08-10 &lt;tag&gt;"));
+        assertTrue(content.htmlBody().contains("O&#39;Brien&#39;s &lt;Shelter&gt;"));
+    }
+
+    @Test
+    @DisplayName("builds WAITLIST_CANCELLED_BY_ORGANIZATION content with empathetic wording, "
+            + "naming that the volunteer was on the waitlist")
+    void buildsWaitlistCancelledByOrganizationContent() {
+        NotificationEvent event = waitlistCancelledByOrganizationEvent(
+                "Jane Volunteer", "Food Bank Shift", "2026-08-10", "Seattle Food Bank");
+
+        EmailContent content = factory.create(event);
+
+        assertTrue(content.subject().toLowerCase().contains("cancelled"));
+        assertTrue(content.subject().contains("Food Bank Shift"));
+        assertTrue(content.plainTextBody().contains("Jane Volunteer"));
+        assertTrue(content.plainTextBody().contains("Food Bank Shift"));
+        assertTrue(content.plainTextBody().contains("2026-08-10"));
+        assertTrue(content.plainTextBody().contains("Seattle Food Bank"));
+        assertTrue(content.plainTextBody().toLowerCase().contains("sorry"));
+        assertTrue(content.plainTextBody().toLowerCase().contains("waitlist"));
+        assertTrue(content.htmlBody().contains("Jane Volunteer"));
+        assertTrue(content.htmlBody().contains("Food Bank Shift"));
+        assertTrue(content.htmlBody().contains("2026-08-10"));
+        assertTrue(content.htmlBody().contains("Seattle Food Bank"));
+        assertTrue(content.htmlBody().toLowerCase().contains("sorry"));
+        assertTrue(content.htmlBody().toLowerCase().contains("waitlist"));
+    }
+
+    @Test
+    @DisplayName("escapes HTML-significant characters in WAITLIST_CANCELLED_BY_ORGANIZATION content")
+    void escapesHtmlInWaitlistCancelledByOrganizationContent() {
+        NotificationEvent event = waitlistCancelledByOrganizationEvent(
                 "Jane <script>alert('x')</script>",
                 "Bake & Sell \"Charity\" Event",
                 "2026-08-10 <tag>",

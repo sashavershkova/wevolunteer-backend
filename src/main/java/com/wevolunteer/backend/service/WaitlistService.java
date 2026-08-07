@@ -142,18 +142,17 @@ public class WaitlistService {
     }
 
     /**
-     * Removes every waitlist entry for an opportunity as part of closing it, so a later reopen
-     * starts with a genuinely clean waitlist instead of leaving stale entries that would show a
-     * volunteer as still "Waitlisted" on an opportunity with open spots - and that could
-     * otherwise be wrongly picked up by future auto-promotion.
-     *
-     * <p>No notification is published here - whether a removed-by-close waitlist entry should
-     * get its own email is a deliberately deferred decision, separate from this data cleanup.
+     * Removes every waitlist entry for an opportunity as part of closing it, and publishes one
+     * WAITLIST_CANCELLED_BY_ORGANIZATION event per affected volunteer once their removal
+     * succeeds - so a later reopen starts with a genuinely clean waitlist instead of leaving
+     * stale entries that would show a volunteer as still "Waitlisted" on an opportunity with
+     * open spots, and so waitlisted volunteers hear about the cancellation the same way
+     * registered volunteers already do.
      *
      * <p>Each removal is its own transaction, mirroring
      * {@link RegistrationService#cancelAllRegistrationsForOpportunity}: a failure partway
-     * through leaves the remaining entries removed rather than corrupting data, and the caller
-     * is responsible for not treating that as a successful close.
+     * through leaves the remaining entries (and their events) untouched rather than corrupting
+     * data, and the caller is responsible for not treating that as a successful close.
      */
     public void removeWaitlistForOpportunityClose(Opportunity opportunity) {
         List<Waitlist> entries = waitlistRepository.findByOpportunityId(opportunity.opportunityId());
@@ -164,6 +163,19 @@ public class WaitlistService {
                     opportunity.opportunityId(),
                     opportunity.date(),
                     entry.joinedAt());
+
+            notificationPublisher.publish(new NotificationEvent(
+                    NotificationEventType.WAITLIST_CANCELLED_BY_ORGANIZATION,
+                    entry.userId(),
+                    entry.volunteerName(),
+                    entry.email(),
+                    opportunity.opportunityId(),
+                    opportunity.title(),
+                    opportunity.date(),
+                    opportunity.organizationId(),
+                    opportunity.organizationName(),
+                    Instant.now()
+            ));
         }
     }
 }

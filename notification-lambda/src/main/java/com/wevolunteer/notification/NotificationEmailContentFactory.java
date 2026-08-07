@@ -16,6 +16,7 @@ public class NotificationEmailContentFactory {
             case REGISTRATION_CANCELLED_BY_ORGANIZATION -> registrationCancelledByOrganization(event);
             case WAITLIST_JOINED -> waitlistJoined(event);
             case WAITLIST_LEFT -> waitlistLeft(event);
+            case WAITLIST_CANCELLED_BY_ORGANIZATION -> waitlistCancelledByOrganization(event);
         };
     }
 
@@ -116,6 +117,29 @@ public class NotificationEmailContentFactory {
                 + escapeHtml(event.organizationName())
                 + ". If you change your mind, you're welcome to join the waitlist again anytime.</p>"
                 + "<p>Thank you for volunteering!<br>The WeVolunteer Team</p>";
+
+        return new EmailContent(subject, plainTextBody, htmlBody);
+    }
+
+    private EmailContent waitlistCancelledByOrganization(NotificationEvent event) {
+        String subject = "This opportunity has been cancelled: " + event.opportunityTitle();
+
+        String plainTextBody = "Hi " + event.volunteerName() + ",\n\n"
+                + "We're sorry to let you know that \"" + event.opportunityTitle() + "\" on "
+                + event.opportunityDate() + " with " + event.organizationName()
+                + ", which you were on the waitlist for, has been cancelled by the organization. "
+                + "We know this may be disappointing, and we're grateful for your willingness to help.\n\n"
+                + "We hope to see you at another opportunity soon!\n"
+                + "The WeVolunteer Team";
+
+        String htmlBody = "<p>Hi " + escapeHtml(event.volunteerName()) + ",</p>"
+                + "<p>We're sorry to let you know that <strong>" + escapeHtml(event.opportunityTitle())
+                + "</strong> on " + escapeHtml(event.opportunityDate()) + " with "
+                + escapeHtml(event.organizationName())
+                + ", which you were on the waitlist for, has been cancelled by the organization. "
+                + "We know this may be disappointing, and we're grateful for your willingness to "
+                + "help.</p>"
+                + "<p>We hope to see you at another opportunity soon!<br>The WeVolunteer Team</p>";
 
         return new EmailContent(subject, plainTextBody, htmlBody);
     }
